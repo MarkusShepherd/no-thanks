@@ -124,9 +124,7 @@ setup(
     packages=find_packages(exclude=("tests", "*.tests", "*.tests.*", "tests.*")),
     # If your package is a single module, use this instead of 'packages':
     # py_modules=(),
-    # entry_points={
-    #     'console_scripts': ['mycli=mymodule:cli'],
-    # },
+    entry_points={"console_scripts": ("no-thanks=no_thanks.__main__:main",),},
     install_requires=REQUIRED,
     extras_require=EXTRAS,
     include_package_data=True,
@@ -139,6 +137,7 @@ setup(
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Topic :: Games/Entertainment :: Board Games",
     ],
     # $ setup.py publish support.
     cmdclass={"upload": UploadCommand},
