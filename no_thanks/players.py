@@ -50,4 +50,15 @@ class Heuristic(Player):
 
     def take_proba(self: "Heuristic") -> float:
         """Probability to play TAKE."""
-        return 1 if self.tokens <= 0 else 1 / self.tokens
+        proba = 1 if self.tokens <= 0 else 1 / self.tokens
+        card = self.game.draw_pile[0]
+        tokens_on_card = self.game.tokens_on_card
+
+        if card - 1 in self.cards or card + 1 in self.cards:
+            proba *= 2
+
+        value = card - tokens_on_card
+        factor = 0.05 if value >= 20 else 1 - value / 20
+        proba *= factor
+
+        return max(min(proba, 1), 0)
