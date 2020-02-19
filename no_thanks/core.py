@@ -158,7 +158,7 @@ class Player:
         self.tokens = tokens
         self.cards = set()
 
-    def action(self: "Player"):
+    def action(self: "Player") -> Action:
         """Choose an action."""
         return Action.TAKE if self.tokens <= 0 else choice(ACTIONS)
 
