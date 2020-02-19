@@ -6,6 +6,7 @@ import logging
 import sys
 
 from .core import Game, Player
+from .players import Human
 
 
 def main() -> None:
@@ -18,7 +19,9 @@ def main() -> None:
     )
 
     num_players = 5
-    players = (Player(name=str(i + 1)) for i in range(num_players))
+    players = [Human(name="You")] + [
+        Player(name=f"AI #{i + 1}") for i in range(num_players - 1)
+    ]
     game = Game(players=players)
     game.play()
 
