@@ -79,9 +79,10 @@ class Game:
         while not self.finished:
             player = self.players[self.current_player]
             LOGGER.info(
-                "Card: %d; token(s): %d; active player: %s",
+                "Card: %d; token(s): %d; card(s) remaining: %d, active player: %s",
                 self.draw_pile[0],
                 self.tokens_on_card,
+                len(self.draw_pile) - 1,
                 player,
             )
 
