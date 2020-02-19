@@ -5,7 +5,10 @@
 import logging
 import sys
 
+from typing import List
+
 from .core import Game, Player
+from .players import Heuristic, Human
 
 
 def main() -> None:
@@ -18,7 +21,8 @@ def main() -> None:
     )
 
     num_players = 5
-    players = (Player(name=str(i + 1)) for i in range(num_players))
+    players: List[Player] = [Human(name="You")]
+    players += [Heuristic(name=f"AI #{i + 1}") for i in range(num_players - 1)]
     game = Game(players=players)
     game.play()
 
