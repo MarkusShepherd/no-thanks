@@ -37,7 +37,7 @@ VERSION = None  # will be read from __version__.py
 REQUIRED = ("inquirer",)
 
 # What packages are optional?
-EXTRAS = {}
+EXTRAS = {"rl": ("gym", "keras", "keras-rl", "numpy", "tensorflow")}
 
 # The rest you shouldn't have to touch too much :)
 # ------------------------------------------------

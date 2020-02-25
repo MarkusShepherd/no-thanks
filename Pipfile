@@ -7,7 +7,12 @@ verify_ssl = true
 python_version = "3.7"
 
 [packages]
+gym = "*"
 inquirer = "*"
+keras = "*"
+keras-rl = "*"
+numpy = "*"
+tensorflow = "*"
 
 [dev-packages]
 black = "==19.10b0"
