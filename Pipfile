@@ -8,9 +8,10 @@ python_version = "3.11"
 
 [packages]
 inquirer = "*"
+numpy = "*"
 
 [dev-packages]
-black = "==19.10b0"
+black = "*"
 mypy = "*"
 pylint = "*"
 twine = "*"
