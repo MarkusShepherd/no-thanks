@@ -52,7 +52,7 @@ def main() -> None:
     players += [
         Heuristic(name=f"AI #{i + 1}")
         if random() < 0.5
-        else ParametricHeuristic(name=f"PAI #{i + 1}")
+        else ParametricHeuristic.random_weights(name=f"PAI #{i + 1}")
         for i in range(num_players - len(names))
     ]
 

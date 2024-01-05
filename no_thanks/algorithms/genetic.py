@@ -184,12 +184,12 @@ def main():
         format="%(levelname)-4.4s [%(name)s:%(lineno)s] %(message)s",
     )
 
-    trainer = GeneticTrainer(generations=10)
+    trainer = GeneticTrainer(generations=100)
     trainer.reset()
     trainer.train()
 
     for player in trainer.population[:3]:
-        print(player.name, player.elo_rating)
+        print(player.name, player.elo_rating, player.strategy_weights)
 
 
 if __name__ == "__main__":

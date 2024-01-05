@@ -16,4 +16,7 @@ def pairwise(iterable: Iterable[EntityT]) -> Iterable[Tuple[EntityT, EntityT]]:
 
 def sigmoid(x: float) -> float:
     """Sigmoid function."""
-    return 1.0 / (1.0 + math.exp(-x))
+    try:
+        return 1.0 / (1.0 + math.exp(-x))
+    except OverflowError:
+        return 0.0

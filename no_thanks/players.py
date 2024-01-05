@@ -1,6 +1,6 @@
 """Players."""
 
-from dataclasses import dataclass
+import dataclasses
 import logging
 import random
 
@@ -70,7 +70,7 @@ class Heuristic(Player):
         return max(min(proba, 1), 0)
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class StrategyWeights:
     """Weights for a strategy."""
 
@@ -81,8 +81,8 @@ class StrategyWeights:
     tokens_on_card_weight: float = 0.0
     cards_in_draw_pile_weight: float = 0.0
     number_of_opponents_weight: float = 0.0
-    cards_in_front_of_this_player_weight: Optional[Dict[int, float]] = None
-    cards_in_front_of_other_players_weight: Optional[Dict[int, float]] = None
+    cards_in_front_of_this_player_weight: Dict[int, float]
+    cards_in_front_of_other_players_weight: Dict[int, float]
 
 
 class ParametricHeuristic(Heuristic):
@@ -124,8 +124,7 @@ class ParametricHeuristic(Heuristic):
             )
         )
 
-        return cls(
-            name,
+        strategy_weights = StrategyWeights(
             current_card_weight=current_card_weight,
             current_value_weight=current_value_weight,
             future_value_weight=future_value_weight,
@@ -137,40 +136,28 @@ class ParametricHeuristic(Heuristic):
             cards_in_front_of_other_players_weight=cards_in_front_of_other_players_weight,
         )
 
+        return cls(
+            name=name,
+            strategy_weights=strategy_weights,
+        )
+
     def __init__(
         self,
         name: str,
+        strategy_weights: StrategyWeights,
         *,
         elo_rating: Optional[float] = None,
-        current_card_weight: float = 0.0,
-        current_value_weight: float = 0.0,
-        future_value_weight: float = 0.0,
-        tokens_in_hand_weight: float = 0.0,
-        tokens_on_card_weight: float = 0.0,
-        cards_in_draw_pile_weight: float = 0.0,
-        number_of_opponents_weight: float = 0.0,
-        cards_in_front_of_this_player_weight: Optional[Dict[int, float]] = None,
-        cards_in_front_of_other_players_weight: Optional[Dict[int, float]] = None,
     ) -> None:
         super().__init__(name=name, elo_rating=elo_rating)
-        self.current_card_weight = current_card_weight
-        self.current_value_weight = current_value_weight
-        self.future_value_weight = future_value_weight
-        self.tokens_in_hand_weight = tokens_in_hand_weight
-        self.tokens_on_card_weight = tokens_on_card_weight
-        self.cards_in_draw_pile_weight = cards_in_draw_pile_weight
-        self.number_of_opponents_weight = number_of_opponents_weight
-
-        self.cards_in_front_of_this_player_weight = (
-            cards_in_front_of_this_player_weight or {}
-        )
-        self.cards_in_front_of_other_players_weight = (
-            cards_in_front_of_other_players_weight or {}
-        )
+        self.strategy_weights = strategy_weights
 
         for i in self.CARD_DISTANCES:
-            self.cards_in_front_of_this_player_weight.setdefault(i, 0.0)
-            self.cards_in_front_of_other_players_weight.setdefault(i, 0.0)
+            self.strategy_weights.cards_in_front_of_this_player_weight.setdefault(
+                i, 0.0
+            )
+            self.strategy_weights.cards_in_front_of_other_players_weight.setdefault(
+                i, 0.0
+            )
 
     def take_proba(self) -> float:
         """Probability to play TAKE depending on chose parameters."""
@@ -205,19 +192,19 @@ class ParametricHeuristic(Heuristic):
         #     return 1
 
         logit = (
-            self.current_card_weight * current_card
-            + self.current_value_weight * current_value
-            + self.future_value_weight * future_value
-            + self.tokens_in_hand_weight * tokens_in_hand
-            + self.tokens_on_card_weight * tokens_on_card
-            + self.cards_in_draw_pile_weight * cards_in_draw_pile
-            + self.number_of_opponents_weight * number_of_opponents
+            self.strategy_weights.current_card_weight * current_card
+            + self.strategy_weights.current_value_weight * current_value
+            + self.strategy_weights.future_value_weight * future_value
+            + self.strategy_weights.tokens_in_hand_weight * tokens_in_hand
+            + self.strategy_weights.tokens_on_card_weight * tokens_on_card
+            + self.strategy_weights.cards_in_draw_pile_weight * cards_in_draw_pile
+            + self.strategy_weights.number_of_opponents_weight * number_of_opponents
             + sum(
-                self.cards_in_front_of_this_player_weight[k] * v
+                self.strategy_weights.cards_in_front_of_this_player_weight[k] * v
                 for k, v in cards_in_front_of_this_player.items()
             )
             + sum(
-                self.cards_in_front_of_other_players_weight[k] * v
+                self.strategy_weights.cards_in_front_of_other_players_weight[k] * v
                 for k, v in cards_in_front_of_other_players.items()
             )
         )
@@ -242,12 +229,16 @@ class ParametricHeuristic(Heuristic):
         ) + dict_attrs
 
         attr = random.choice(attrs)
+        new_value = NormalDist(mean, std).samples(1)[0]
 
         if attr in dict_attrs:
             distance = random.choice(self.CARD_DISTANCES)
-            getattr(self, attr)[distance] = NormalDist(mean, std).samples(1)[0]
+            getattr(self.strategy_weights, attr)[distance] = new_value
         else:
-            setattr(self, attr, NormalDist(mean, std).samples(1)[0])
+            self.strategy_weights = dataclasses.replace(
+                self.strategy_weights,
+                **{attr: new_value},  # type: ignore[arg-type]
+            )
 
         return self
 
@@ -265,23 +256,28 @@ class ParametricHeuristic(Heuristic):
             "number_of_opponents_weight",
         )
         kwargs = {
-            attr: sum(getattr(parent, attr) for parent in parents) / len(parents)
+            attr: sum(getattr(parent.strategy_weights, attr) for parent in parents)
+            / len(parents)
             for attr in attrs
         }
 
         kwargs["cards_in_front_of_this_player_weight"] = {
-            d: sum(parent.cards_in_front_of_this_player_weight[d] for parent in parents)
+            d: sum(
+                parent.strategy_weights.cards_in_front_of_this_player_weight[d]
+                for parent in parents
+            )
             / len(parents)
             for d in cls.CARD_DISTANCES
         }
         kwargs["cards_in_front_of_other_players_weight"] = {
             d: sum(
-                parent.cards_in_front_of_other_players_weight[d] for parent in parents
+                parent.strategy_weights.cards_in_front_of_other_players_weight[d]
+                for parent in parents
             )
             / len(parents)
             for d in cls.CARD_DISTANCES
         }
 
-        kwargs["name"] = name
+        strategy_weights = StrategyWeights(**kwargs)
 
-        return cls(**kwargs)
+        return cls(name=name, strategy_weights=strategy_weights)
