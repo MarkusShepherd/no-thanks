@@ -53,7 +53,7 @@ class Heuristic(Player):
         tokens_on_card = self.game.tokens_on_card
         value = card - tokens_on_card - 1
 
-        if self.tokens <= 0 or value <= 0:
+        if (self.tokens <= 0) or (value <= 0):
             return 1
 
         proba = 0.05 if value >= 20 else 1 - value / 20
@@ -83,13 +83,13 @@ class ParameterHeuristic(Heuristic):
     def take_proba(self) -> float:
         """Probability to play TAKE."""
 
-        current_card = self.game.draw_pile[0]
+        number_of_opponents = len(self.game.players) - 1
         cards_in_draw_pile = len(self.game.draw_pile)
+        current_card = self.game.draw_pile[0]
         tokens_on_card = self.game.tokens_on_card
         tokens_in_hand = self.tokens
         current_value = current_card - tokens_on_card - 1
-        number_of_opponents = len(self.game.players) - 1
-        value_next_turn = current_value - number_of_opponents
+        future_value = current_value - number_of_opponents
 
         cards_in_front_of_this_player = {
             f"current_{i:+d}": current_card + i in self.cards
@@ -104,7 +104,13 @@ class ParameterHeuristic(Heuristic):
             for i in (-3, -2, -1, +1, +2, +3)
         }
 
-        if tokens_in_hand <= 0 or current_value <= 0:
+        if (tokens_in_hand <= 0) or (current_value <= 0):
+            return 1
+
+        if (
+            cards_in_front_of_this_player["current_+1"]
+            or cards_in_front_of_this_player["current_-1"]
+        ) and (future_value <= 0):
             return 1
 
         return super().take_proba()
