@@ -66,7 +66,7 @@ class Heuristic(Player):
         return max(min(proba, 1), 0)
 
 
-class ParameterHeuristic(Heuristic):
+class ParametricHeuristic(Heuristic):
     """Use heuristics with parameters to choose actions."""
 
     def __init__(self, name: str) -> None:
@@ -81,7 +81,7 @@ class ParameterHeuristic(Heuristic):
         # * number of players / expected value on next turn
 
     def take_proba(self) -> float:
-        """Probability to play TAKE."""
+        """Probability to play TAKE depending on chose parameters."""
 
         number_of_opponents = len(self.game.players) - 1
         cards_in_draw_pile = len(self.game.draw_pile)
@@ -112,5 +112,7 @@ class ParameterHeuristic(Heuristic):
             or cards_in_front_of_this_player["current_-1"]
         ) and (future_value <= 0):
             return 1
+
+        # TODO: use parameters to compute probability with some clever formula
 
         return super().take_proba()
