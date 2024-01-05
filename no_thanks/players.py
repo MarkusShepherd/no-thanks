@@ -1,5 +1,6 @@
 """Players."""
 
+from dataclasses import dataclass
 import logging
 import random
 
@@ -67,6 +68,21 @@ class Heuristic(Player):
             proba *= 2
 
         return max(min(proba, 1), 0)
+
+
+@dataclass(frozen=True, kw_only=True)
+class StrategyWeights:
+    """Weights for a strategy."""
+
+    current_card_weight: float = 0.0
+    current_value_weight: float = 0.0
+    future_value_weight: float = 0.0
+    tokens_in_hand_weight: float = 0.0
+    tokens_on_card_weight: float = 0.0
+    cards_in_draw_pile_weight: float = 0.0
+    number_of_opponents_weight: float = 0.0
+    cards_in_front_of_this_player_weight: Optional[Dict[int, float]] = None
+    cards_in_front_of_other_players_weight: Optional[Dict[int, float]] = None
 
 
 class ParametricHeuristic(Heuristic):
@@ -168,15 +184,15 @@ class ParametricHeuristic(Heuristic):
         future_value = current_value - number_of_opponents
 
         cards_in_front_of_this_player = {
-            i: current_card + i in self.cards for i in self.CARD_DISTANCES
+            d: current_card + d in self.cards for d in self.CARD_DISTANCES
         }
         cards_in_front_of_other_players = {
-            i: any(
-                current_card + i in opponent.cards
+            d: any(
+                current_card + d in opponent.cards
                 for opponent in self.game.players
                 if opponent is not self
             )
-            for i in self.CARD_DISTANCES
+            for d in self.CARD_DISTANCES
         }
 
         # if (tokens_in_hand <= 0) or (current_value <= 0):
