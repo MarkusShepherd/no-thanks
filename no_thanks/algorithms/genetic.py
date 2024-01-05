@@ -175,12 +175,22 @@ class GeneticTrainer:
             self.play_generation(evolve_population=not last_generation)
 
 
-if __name__ == "__main__":
+def main():
+    """Run the trainer."""
+
     logging.basicConfig(
         stream=sys.stderr,
         level=logging.WARNING,
         format="%(levelname)-4.4s [%(name)s:%(lineno)s] %(message)s",
     )
-    trainer = GeneticTrainer()
+
+    trainer = GeneticTrainer(generations=10)
     trainer.reset()
     trainer.train()
+
+    for player in trainer.population[:3]:
+        print(player.name, player.elo_rating)
+
+
+if __name__ == "__main__":
+    main()
