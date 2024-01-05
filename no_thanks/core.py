@@ -4,7 +4,7 @@ import logging
 
 from enum import Enum, auto
 from random import choice, sample
-from typing import Iterable, List, Set, Tuple
+from typing import Iterable, List, Optional, Set, Tuple
 
 from .utils import pairwise
 
@@ -141,12 +141,15 @@ class Player:
     """A player."""
 
     name: str
+    elo: float
+
     game: Game
     tokens: int
     cards: Set[int]
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, elo: Optional[float] = None) -> None:
         self.name = name
+        self.elo = elo or 1200
 
     def __str__(self) -> str:
         return f"Player <{self.name}>"
