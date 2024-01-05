@@ -5,7 +5,7 @@
 import logging
 
 from random import random
-from typing import Dict
+from typing import Dict, Optional
 
 import inquirer
 
@@ -71,18 +71,21 @@ class Heuristic(Player):
 class ParametricHeuristic(Heuristic):
     """Use heuristics with parameters to choose actions."""
 
+    CARD_DISTANCES = (-3, -2, -1, +1, +2, +3)
+
     def __init__(
         self,
         name: str,
-        current_card_weight: float,
-        current_value_weight: float,
-        future_value_weight: float,
-        tokens_in_hand_weight: float,
-        tokens_on_card_weight: float,
-        cards_in_draw_pile_weight: float,
-        number_of_opponents_weight: float,
-        cards_in_front_of_this_player_weight: Dict[int, float],
-        cards_in_front_of_other_players_weight: Dict[int, float],
+        *,
+        current_card_weight: float = 0.0,
+        current_value_weight: float = 0.0,
+        future_value_weight: float = 0.0,
+        tokens_in_hand_weight: float = 0.0,
+        tokens_on_card_weight: float = 0.0,
+        cards_in_draw_pile_weight: float = 0.0,
+        number_of_opponents_weight: float = 0.0,
+        cards_in_front_of_this_player_weight: Optional[Dict[int, float]] = None,
+        cards_in_front_of_other_players_weight: Optional[Dict[int, float]] = None,
     ) -> None:
         super().__init__(name=name)
         self.current_card_weight = current_card_weight
@@ -92,10 +95,17 @@ class ParametricHeuristic(Heuristic):
         self.tokens_on_card_weight = tokens_on_card_weight
         self.cards_in_draw_pile_weight = cards_in_draw_pile_weight
         self.number_of_opponents_weight = number_of_opponents_weight
-        self.cards_in_front_of_this_player_weight = cards_in_front_of_this_player_weight
-        self.cards_in_front_of_other_players_weight = (
-            cards_in_front_of_other_players_weight
+
+        self.cards_in_front_of_this_player_weight = (
+            cards_in_front_of_this_player_weight or {}
         )
+        self.cards_in_front_of_other_players_weight = (
+            cards_in_front_of_other_players_weight or {}
+        )
+
+        for i in self.CARD_DISTANCES:
+            self.cards_in_front_of_this_player_weight.setdefault(i, 0.0)
+            self.cards_in_front_of_other_players_weight.setdefault(i, 0.0)
 
     def take_proba(self) -> float:
         """Probability to play TAKE depending on chose parameters."""
@@ -109,7 +119,7 @@ class ParametricHeuristic(Heuristic):
         future_value = current_value - number_of_opponents
 
         cards_in_front_of_this_player = {
-            i: current_card + i in self.cards for i in (-3, -2, -1, +1, +2, +3)
+            i: current_card + i in self.cards for i in self.CARD_DISTANCES
         }
         cards_in_front_of_other_players = {
             i: any(
@@ -117,7 +127,7 @@ class ParametricHeuristic(Heuristic):
                 for opponent in self.game.players
                 if opponent is not self
             )
-            for i in (-3, -2, -1, +1, +2, +3)
+            for i in self.CARD_DISTANCES
         }
 
         # if (tokens_in_hand <= 0) or (current_value <= 0):
