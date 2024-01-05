@@ -6,7 +6,8 @@ from enum import Enum, auto
 from random import choice, sample
 from typing import Iterable, List, Optional, Set, Tuple
 
-from .utils import pairwise
+from no_thanks.elo import calculate_multiplayer_elo_rating_update
+from no_thanks.utils import pairwise
 
 LOGGER = logging.getLogger(__name__)
 
@@ -122,6 +123,31 @@ class Game:
 
         return results
 
+    def update_elo_ratings(self) -> None:
+        """Update the ELO ratings of the players."""
+
+        assert self.finished, "Game must be finished before updating ELO ratings"
+
+        players = self.sort_players
+        elo_ratings = tuple(player.elo_rating for player in players)
+        scores = tuple(player.score for player in players)
+
+        updates = calculate_multiplayer_elo_rating_update(
+            elo_ratings=elo_ratings,
+            scores=scores,
+        )
+
+        new_elo_ratings = tuple(
+            elo_rating + update for elo_rating, update in zip(elo_ratings, updates)
+        )
+
+        LOGGER.info(
+            "ELO ratings before game: %s; after game: %s", elo_ratings, new_elo_ratings
+        )
+
+        for player, elo_rating in zip(players, new_elo_ratings):
+            player.elo_rating = elo_rating
+
 
 def _make_runs(cards: Iterable[int]) -> Iterable[Iterable[int]]:
     cards = sorted(cards)
@@ -141,15 +167,15 @@ class Player:
     """A player."""
 
     name: str
-    elo: float
+    elo_rating: float
 
     game: Game
     tokens: int
     cards: Set[int]
 
-    def __init__(self, name: str, elo: Optional[float] = None) -> None:
+    def __init__(self, name: str, elo_rating: Optional[float] = None) -> None:
         self.name = name
-        self.elo = elo or 1200
+        self.elo_rating = elo_rating or 1200
 
     def __str__(self) -> str:
         return f"Player <{self.name}>"
