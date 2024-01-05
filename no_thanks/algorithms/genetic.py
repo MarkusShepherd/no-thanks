@@ -64,6 +64,7 @@ class GeneticTrainer:
         players = random.sample(self.population, num_players)
 
         game = Game(players)
-        results = game.play()
+        game.play()
+        game.update_elo_ratings()
 
         return game

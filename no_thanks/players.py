@@ -123,6 +123,7 @@ class ParametricHeuristic(Heuristic):
         self,
         name: str,
         *,
+        elo_rating: Optional[float] = None,
         current_card_weight: float = 0.0,
         current_value_weight: float = 0.0,
         future_value_weight: float = 0.0,
@@ -133,7 +134,7 @@ class ParametricHeuristic(Heuristic):
         cards_in_front_of_this_player_weight: Optional[Dict[int, float]] = None,
         cards_in_front_of_other_players_weight: Optional[Dict[int, float]] = None,
     ) -> None:
-        super().__init__(name=name)
+        super().__init__(name=name, elo_rating=elo_rating)
         self.current_card_weight = current_card_weight
         self.current_value_weight = current_value_weight
         self.future_value_weight = future_value_weight
