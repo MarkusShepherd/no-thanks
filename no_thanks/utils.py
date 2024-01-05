@@ -2,6 +2,7 @@
 
 """Utility functions."""
 
+import math
 from itertools import tee
 from typing import Iterable, Tuple, TypeVar
 
@@ -13,3 +14,8 @@ def pairwise(iterable: Iterable[EntityT]) -> Iterable[Tuple[EntityT, EntityT]]:
     it1, it2 = tee(iterable)
     next(it2, None)
     return zip(it1, it2)
+
+
+def sigmoid(x: float) -> float:
+    """Sigmoid function."""
+    return 1.0 / (1.0 + math.exp(-x))

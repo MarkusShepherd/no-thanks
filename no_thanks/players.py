@@ -5,10 +5,12 @@
 import logging
 
 from random import random
+from typing import Dict
 
 import inquirer
 
 from .core import Action, Player
+from .utils import sigmoid
 
 LOGGER = logging.getLogger(__name__)
 
@@ -69,16 +71,31 @@ class Heuristic(Player):
 class ParametricHeuristic(Heuristic):
     """Use heuristics with parameters to choose actions."""
 
-    def __init__(self, name: str) -> None:
-        super().__init__(name)
-        # TODO: parameters, e.g.,
-        # * cards in draw pile
-        # * tokens in hand
-        # * tokens on card
-        # * card value
-        # * ±1/2/3 card in front of this player
-        # * ±1/2/3 card in front of other players
-        # * number of players / expected value on next turn
+    def __init__(
+        self,
+        name: str,
+        current_card_weight: float,
+        current_value_weight: float,
+        future_value_weight: float,
+        tokens_in_hand_weight: float,
+        tokens_on_card_weight: float,
+        cards_in_draw_pile_weight: float,
+        number_of_opponents_weight: float,
+        cards_in_front_of_this_player_weight: Dict[int, float],
+        cards_in_front_of_other_players_weight: Dict[int, float],
+    ) -> None:
+        super().__init__(name=name)
+        self.current_card_weight = current_card_weight
+        self.current_value_weight = current_value_weight
+        self.future_value_weight = future_value_weight
+        self.tokens_in_hand_weight = tokens_in_hand_weight
+        self.tokens_on_card_weight = tokens_on_card_weight
+        self.cards_in_draw_pile_weight = cards_in_draw_pile_weight
+        self.number_of_opponents_weight = number_of_opponents_weight
+        self.cards_in_front_of_this_player_weight = cards_in_front_of_this_player_weight
+        self.cards_in_front_of_other_players_weight = (
+            cards_in_front_of_other_players_weight
+        )
 
     def take_proba(self) -> float:
         """Probability to play TAKE depending on chose parameters."""
@@ -92,11 +109,10 @@ class ParametricHeuristic(Heuristic):
         future_value = current_value - number_of_opponents
 
         cards_in_front_of_this_player = {
-            f"current_{i:+d}": current_card + i in self.cards
-            for i in (-3, -2, -1, +1, +2, +3)
+            i: current_card + i in self.cards for i in (-3, -2, -1, +1, +2, +3)
         }
         cards_in_front_of_other_players = {
-            f"current_{i:+d}": any(
+            i: any(
                 current_card + i in opponent.cards
                 for opponent in self.game.players
                 if opponent is not self
@@ -104,15 +120,31 @@ class ParametricHeuristic(Heuristic):
             for i in (-3, -2, -1, +1, +2, +3)
         }
 
-        if (tokens_in_hand <= 0) or (current_value <= 0):
-            return 1
+        # if (tokens_in_hand <= 0) or (current_value <= 0):
+        #     return 1
 
-        if (
-            cards_in_front_of_this_player["current_+1"]
-            or cards_in_front_of_this_player["current_-1"]
-        ) and (future_value <= 0):
-            return 1
+        # if (
+        #     cards_in_front_of_this_player[1]
+        #     or cards_in_front_of_this_player[-1]
+        # ) and (future_value <= 0):
+        #     return 1
 
-        # TODO: use parameters to compute probability with some clever formula
+        logit = (
+            self.current_card_weight * current_card
+            + self.current_value_weight * current_value
+            + self.future_value_weight * future_value
+            + self.tokens_in_hand_weight * tokens_in_hand
+            + self.tokens_on_card_weight * tokens_on_card
+            + self.cards_in_draw_pile_weight * cards_in_draw_pile
+            + self.number_of_opponents_weight * number_of_opponents
+            + sum(
+                self.cards_in_front_of_this_player_weight[k] * v
+                for k, v in cards_in_front_of_this_player.items()
+            )
+            + sum(
+                self.cards_in_front_of_other_players_weight[k] * v
+                for k, v in cards_in_front_of_other_players.items()
+            )
+        )
 
-        return super().take_proba()
+        return sigmoid(logit)
