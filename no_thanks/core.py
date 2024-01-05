@@ -37,12 +37,12 @@ class Game:
     current_player: int
     tokens_on_card: int
 
-    def __init__(self: "Game", players: Iterable["Player"]) -> None:
+    def __init__(self, players: Iterable["Player"]) -> None:
         self.players = tuple(players)
         assert self.NUM_PLAYERS_MIN <= len(self.players) <= self.NUM_PLAYERS_MAX
         self.reset()
 
-    def reset(self: "Game") -> None:
+    def reset(self) -> None:
         """Reset the game."""
 
         self.current_player = 0
@@ -61,17 +61,17 @@ class Game:
         LOGGER.info("Draw pile: %s", ", ".join(map(str, self.draw_pile)))
 
     @property
-    def finished(self: "Game") -> bool:
+    def finished(self) -> bool:
         """Has this game finished?"""
         return not self.draw_pile
 
     @property
-    def sort_players(self: "Game") -> Tuple["Player", ...]:
+    def sort_players(self) -> Tuple["Player", ...]:
         """Sort players by their score."""
         attr = "score" if self.finished else "score_cards"
         return tuple(sorted(self.players, key=lambda player: -getattr(player, attr)))
 
-    def play(self: "Game") -> Tuple["Player", ...]:
+    def play(self) -> Tuple["Player", ...]:
         """Play the game."""
 
         LOGGER.info("Starting a game with %d players", len(self.players))
@@ -147,33 +147,33 @@ class Player:
     tokens: int
     cards: Set[int]
 
-    def __init__(self: "Player", name: str) -> None:
+    def __init__(self, name: str) -> None:
         self.name = name
 
-    def __str__(self: "Player") -> str:
+    def __str__(self) -> str:
         return f"Player <{self.name}>"
 
-    def reset(self: "Player", game: Game, tokens: int) -> None:
+    def reset(self, game: Game, tokens: int) -> None:
         """Reset the player."""
         self.game = game
         self.tokens = tokens
         self.cards = set()
 
-    def action(self: "Player") -> Action:
+    def action(self) -> Action:
         """Choose an action."""
         return Action.TAKE if self.tokens <= 0 else choice(ACTIONS)
 
     @property
-    def runs(self: "Player") -> Tuple[Tuple[int, ...], ...]:
+    def runs(self) -> Tuple[Tuple[int, ...], ...]:
         """The sequencial runs formed by this player's cards."""
         return tuple(tuple(run) for run in _make_runs(self.cards))
 
     @property
-    def score_cards(self: "Player") -> int:
+    def score_cards(self) -> int:
         """Minus points incurred from cards."""
         return sum(-run[0] for run in self.runs)
 
     @property
-    def score(self: "Player") -> int:
+    def score(self) -> int:
         """Total score."""
         return self.score_cards + self.tokens

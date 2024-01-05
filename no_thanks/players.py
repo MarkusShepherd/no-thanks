@@ -16,7 +16,7 @@ LOGGER = logging.getLogger(__name__)
 class Human(Player):
     """Human interactive input."""
 
-    def action(self: "Human") -> Action:
+    def action(self) -> Action:
         """Prompt for an action."""
 
         actions = [Action.TAKE] if self.tokens <= 0 else reversed(Action)
@@ -40,13 +40,13 @@ class Human(Player):
 class Heuristic(Player):
     """Use heuristics to choose actions."""
 
-    def action(self: "Heuristic") -> Action:
+    def action(self) -> Action:
         """Choose an action based on heuristics."""
         proba = self.take_proba()
         LOGGER.info("Probability to take: %.3f", proba)
         return Action.TAKE if self.tokens <= 0 or random() <= proba else Action.PASS
 
-    def take_proba(self: "Heuristic") -> float:
+    def take_proba(self) -> float:
         """Probability to play TAKE."""
 
         card = self.game.draw_pile[0]
@@ -64,3 +64,22 @@ class Heuristic(Player):
             proba *= 2
 
         return max(min(proba, 1), 0)
+
+
+class ParameterHeuristic(Heuristic):
+    """Use heuristics with parameters to choose actions."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        # TODO: parameters, e.g.,
+        # * cards in draw pile
+        # * tokens in hand
+        # * tokens on card
+        # * card value
+        # * ±1/2/3 card in front of this player
+        # * ±1/2/3 card in front of other players
+
+    def take_proba(self) -> float:
+        """Probability to play TAKE."""
+        # TODO: implement using parameters
+        return super().take_proba()
