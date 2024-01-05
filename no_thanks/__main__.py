@@ -4,12 +4,13 @@
 
 import argparse
 import logging
+from random import random
 import sys
 
 from typing import List
 
 from .core import Game, Player
-from .players import Heuristic, Human
+from .players import Heuristic, Human, ParametricHeuristic
 
 LOGGER = logging.getLogger(__name__)
 
@@ -50,7 +51,12 @@ def main() -> None:
     assert Game.NUM_PLAYERS_MIN <= num_players <= Game.NUM_PLAYERS_MAX
 
     players: List[Player] = [Human(name=name) for name in names]
-    players += [Heuristic(name=f"AI #{i + 1}") for i in range(num_players - len(names))]
+    players += [
+        Heuristic(name=f"AI #{i + 1}")
+        if random() < 0.5
+        else ParametricHeuristic(name=f"PAI #{i + 1}")
+        for i in range(num_players - len(names))
+    ]
 
     game = Game(players=players)
     game.play()
