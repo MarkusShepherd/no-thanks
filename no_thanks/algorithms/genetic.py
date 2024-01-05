@@ -43,7 +43,7 @@ class GeneticTrainer:
         self.current_population_count = 0
         self.population: Optional[Tuple[ParametricHeuristic, ...]] = None
 
-    def reset(self, mean: float = 0.0, std: float = 1.0) -> None:
+    def reset(self, mean: float = 0.0, std: float = 10.0) -> None:
         """Reset the trainer."""
         self.current_generation = 0
         self.population = tuple(
@@ -148,8 +148,8 @@ class GeneticTrainer:
             ParametricHeuristic.random_weights(
                 name=f"AI #{self.current_population_count + i + 1:05d} "
                 + f"(gen #{self.current_generation:05d}, new)",
-                mean=0,
-                std=1,
+                mean=0.0,
+                std=10.0,
             )
             for i in range(num_new)
         )
@@ -162,7 +162,7 @@ class GeneticTrainer:
         for player in self.population:
             player.elo_rating = 1200
             if random.random() < self.mutation_rate:
-                player.mutate()
+                player.mutate(mean=0.0, std=10.0)
                 player.name += f" [mutated gen #{self.current_generation:05d}]"
 
     def train(self) -> None:
