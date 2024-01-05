@@ -78,8 +78,33 @@ class ParameterHeuristic(Heuristic):
         # * card value
         # * ±1/2/3 card in front of this player
         # * ±1/2/3 card in front of other players
+        # * number of players / expected value on next turn
 
     def take_proba(self) -> float:
         """Probability to play TAKE."""
-        # TODO: implement using parameters
+
+        current_card = self.game.draw_pile[0]
+        cards_in_draw_pile = len(self.game.draw_pile)
+        tokens_on_card = self.game.tokens_on_card
+        tokens_in_hand = self.tokens
+        current_value = current_card - tokens_on_card - 1
+        number_of_opponents = len(self.game.players) - 1
+        value_next_turn = current_value - number_of_opponents
+
+        cards_in_front_of_this_player = {
+            f"current_{i:+d}": current_card + i in self.cards
+            for i in (-3, -2, -1, +1, +2, +3)
+        }
+        cards_in_front_of_other_players = {
+            f"current_{i:+d}": any(
+                current_card + i in opponent.cards
+                for opponent in self.game.players
+                if opponent is not self
+            )
+            for i in (-3, -2, -1, +1, +2, +3)
+        }
+
+        if tokens_in_hand <= 0 or current_value <= 0:
+            return 1
+
         return super().take_proba()
