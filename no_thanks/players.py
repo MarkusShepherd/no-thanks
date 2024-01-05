@@ -60,7 +60,7 @@ class Heuristic(Player):
 
         proba *= 1 + 1 / self.tokens
 
-        if (card - 1) in self.cards or (card + 1) in self.cards:
+        if (card - 1 in self.cards) or (card + 1 in self.cards):
             proba *= 2
 
         return max(min(proba, 1), 0)

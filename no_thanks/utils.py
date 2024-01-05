@@ -5,10 +5,10 @@
 from itertools import tee
 from typing import Iterable, Tuple, TypeVar
 
-TYPE = TypeVar("TYPE")
+EntityT = TypeVar("EntityT")
 
 
-def pairwise(iterable: Iterable[TYPE]) -> Iterable[Tuple[TYPE, TYPE]]:
+def pairwise(iterable: Iterable[EntityT]) -> Iterable[Tuple[EntityT, EntityT]]:
     """s -> (s0,s1), (s1,s2), (s2, s3), ..."""
     it1, it2 = tee(iterable)
     next(it2, None)
