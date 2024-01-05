@@ -19,12 +19,9 @@ class Human(Player):
     def action(self: "Human") -> Action:
         """Prompt for an action."""
 
-        if self.tokens <= 0:
-            return Action.TAKE
-
+        actions = [Action.TAKE] if self.tokens <= 0 else reversed(Action)
         action_tags = [
-            inquirer.questions.TaggedValue(label=str(a), value=a)
-            for a in reversed(Action)
+            inquirer.questions.TaggedValue(label=str(a), value=a) for a in actions
         ]
         question = inquirer.List(
             name="action",
