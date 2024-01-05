@@ -5,6 +5,8 @@ import random
 import sys
 from typing import Optional, Tuple
 
+import tqdm
+
 from no_thanks.core import Game
 from no_thanks.players import ParametricHeuristic
 
@@ -16,7 +18,8 @@ class GeneticTrainer:
 
     def __init__(
         self,
-        population_size: int = 1000,
+        population_size: int = 100,
+        games_per_generation: int = 1000,
         generations: int = 10000,
         inheritance_rate: float = 0.7,
         reproduction_rate: float = 0.25,
@@ -25,6 +28,7 @@ class GeneticTrainer:
         """Initialize the trainer."""
 
         self.population_size = population_size
+        self.games_per_generation = games_per_generation
         self.generations = generations
         self.inheritance_rate = inheritance_rate
         self.reproduction_rate = reproduction_rate
@@ -87,10 +91,10 @@ class GeneticTrainer:
 
         self.current_generation += 1
 
-        LOGGER.info("Playing generation #%05d", self.current_generation)
+        LOGGER.warning("Playing generation #%05d", self.current_generation)
 
         # TODO: Parallelize this
-        for _ in range(self.population_size):
+        for _ in tqdm.trange(self.games_per_generation):
             self.play_game()
 
         self.population = tuple(
@@ -101,17 +105,17 @@ class GeneticTrainer:
             )
         )
 
-        LOGGER.info(
+        LOGGER.warning(
             "Best player: %s (Elo: %d)",
             self.population[0].name,
             self.population[0].elo_rating,
         )
-        LOGGER.info(
+        LOGGER.warning(
             "Worst player: %s (Elo: %d)",
             self.population[-1].name,
             self.population[-1].elo_rating,
         )
-        LOGGER.info("Finished generation #%05d", self.current_generation)
+        LOGGER.warning("Finished generation #%05d", self.current_generation)
 
         if not evolve_population:
             return
@@ -174,7 +178,7 @@ class GeneticTrainer:
 if __name__ == "__main__":
     logging.basicConfig(
         stream=sys.stderr,
-        level=logging.INFO,
+        level=logging.WARNING,
         format="%(levelname)-4.4s [%(name)s:%(lineno)s] %(message)s",
     )
     trainer = GeneticTrainer()

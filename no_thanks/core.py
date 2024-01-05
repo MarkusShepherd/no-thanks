@@ -57,7 +57,7 @@ class Game:
             k=self.CARD_MAX - self.NUM_CARDS_DISCARD,
         )
 
-        LOGGER.info("Draw pile: %s", ", ".join(map(str, self.draw_pile)))
+        LOGGER.debug("Draw pile: %s", ", ".join(map(str, self.draw_pile)))
 
     @property
     def finished(self) -> bool:
@@ -77,7 +77,7 @@ class Game:
 
         while not self.finished:
             player = self.players[self.current_player]
-            LOGGER.info(
+            LOGGER.debug(
                 "Card: %d; token(s): %d; card(s) remaining: %d, active player: %s",
                 self.draw_pile[0],
                 self.tokens_on_card,
@@ -87,12 +87,12 @@ class Game:
 
             action = player.action()
             assert action is Action.TAKE or player.tokens > 0
-            LOGGER.info("%s chose action: %s", player, action)
+            LOGGER.debug("%s chose action: %s", player, action)
 
             if action is Action.TAKE:
                 player.cards.add(self.draw_pile.pop(0))
                 player.tokens += self.tokens_on_card
-                LOGGER.info(
+                LOGGER.debug(
                     "%s now has %d token(s) and runs: %s",
                     player,
                     player.tokens,
@@ -142,7 +142,9 @@ class Game:
         )
 
         LOGGER.info(
-            "ELO ratings before game: %s; after game: %s", elo_ratings, new_elo_ratings
+            "ELO ratings before game: %s; after game: %s",
+            elo_ratings,
+            new_elo_ratings,
         )
 
         for player, elo_rating in zip(players, new_elo_ratings):

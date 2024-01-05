@@ -44,7 +44,7 @@ class Heuristic(Player):
     def action(self) -> Action:
         """Choose an action based on heuristics."""
         proba = self.take_proba()
-        LOGGER.info("Probability of %s: %.1f%%", Action.TAKE, 100 * proba)
+        LOGGER.debug("Probability of %s: %.1f%%", Action.TAKE, 100 * proba)
         return (
             Action.TAKE if self.tokens <= 0 or random.random() <= proba else Action.PASS
         )
