@@ -2,6 +2,7 @@
 
 import logging
 import random
+import sys
 from typing import Optional, Tuple
 
 from no_thanks.core import Game
@@ -15,8 +16,8 @@ class GeneticTrainer:
 
     def __init__(
         self,
-        population_size: int = 100,
-        generations: int = 1000,
+        population_size: int = 1000,
+        generations: int = 10000,
         inheritance_rate: float = 0.7,
         reproduction_rate: float = 0.25,
         mutation_rate: float = 0.05,
@@ -79,7 +80,7 @@ class GeneticTrainer:
 
         return game
 
-    def play_generation(self) -> None:
+    def play_generation(self, evolve_population: bool = True) -> None:
         """Play a generation."""
 
         assert self.population is not None, "Population not initialized"
@@ -92,27 +93,43 @@ class GeneticTrainer:
         for _ in range(self.population_size):
             self.play_game()
 
-        ranked_population = sorted(
-            self.population,
-            key=lambda player: player.elo_rating,
-            reverse=True,
+        self.population = tuple(
+            sorted(
+                self.population,
+                key=lambda player: player.elo_rating,
+                reverse=True,
+            )
         )
 
         LOGGER.info(
             "Best player: %s (Elo: %d)",
-            ranked_population[0].name,
-            ranked_population[0].elo_rating,
+            self.population[0].name,
+            self.population[0].elo_rating,
         )
         LOGGER.info(
             "Worst player: %s (Elo: %d)",
-            ranked_population[-1].name,
-            ranked_population[-1].elo_rating,
+            self.population[-1].name,
+            self.population[-1].elo_rating,
         )
+        LOGGER.info("Finished generation #%05d", self.current_generation)
+
+        if not evolve_population:
+            return
 
         num_inheritance = int(self.population_size * self.inheritance_rate)
-        population_inheritance = tuple(ranked_population[:num_inheritance])
-
         num_reproduction = int(self.population_size * self.reproduction_rate)
+        num_new = self.population_size - num_inheritance - num_reproduction
+        assert num_new >= 0
+
+        LOGGER.info(
+            "Evolution for next generation: %d inheritance, %d reproduction, %d new",
+            num_inheritance,
+            num_reproduction,
+            num_new,
+        )
+
+        population_inheritance = self.population[:num_inheritance]
+
         population_reproduction = tuple(
             ParametricHeuristic.mate(
                 *random.sample(population_inheritance, 2),
@@ -123,8 +140,6 @@ class GeneticTrainer:
         )
         self.current_population_count += num_reproduction
 
-        num_new = self.population_size - num_inheritance - num_reproduction
-        assert num_new >= 0
         population_new = tuple(
             ParametricHeuristic.random_weights(
                 name=f"AI #{self.current_population_count + i + 1:05d} "
@@ -146,4 +161,22 @@ class GeneticTrainer:
                 player.mutate()
                 player.name += f" [mutated gen #{self.current_generation:05d}]"
 
-        LOGGER.info("Finished generation #%05d", self.current_generation)
+    def train(self) -> None:
+        """Train a strategy."""
+
+        assert self.population is not None, "Population not initialized"
+
+        for i in range(self.generations):
+            last_generation = i == self.generations - 1
+            self.play_generation(evolve_population=not last_generation)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=logging.INFO,
+        format="%(levelname)-4.4s [%(name)s:%(lineno)s] %(message)s",
+    )
+    trainer = GeneticTrainer()
+    trainer.reset()
+    trainer.train()
