@@ -3,6 +3,7 @@
 import logging
 
 from random import random
+from statistics import NormalDist
 from typing import Dict, Optional
 
 import inquirer
@@ -70,6 +71,53 @@ class ParametricHeuristic(Heuristic):
     """Use heuristics with parameters to choose actions."""
 
     CARD_DISTANCES = (-3, -2, -1, +1, +2, +3)
+
+    @classmethod
+    def random_weights(
+        cls,
+        name: str,
+        mean: float = 0.0,
+        std: float = 1.0,
+    ) -> "ParametricHeuristic":
+        """Create a heuristic with random parameters."""
+
+        dist = NormalDist(mean, std)
+
+        (
+            current_card_weight,
+            current_value_weight,
+            future_value_weight,
+            tokens_in_hand_weight,
+            tokens_on_card_weight,
+            cards_in_draw_pile_weight,
+            number_of_opponents_weight,
+        ) = dist.samples(7)
+
+        cards_in_front_of_this_player_weight = dict(
+            zip(
+                cls.CARD_DISTANCES,
+                dist.samples(len(cls.CARD_DISTANCES)),
+            )
+        )
+        cards_in_front_of_other_players_weight = dict(
+            zip(
+                cls.CARD_DISTANCES,
+                dist.samples(len(cls.CARD_DISTANCES)),
+            )
+        )
+
+        return cls(
+            name,
+            current_card_weight=current_card_weight,
+            current_value_weight=current_value_weight,
+            future_value_weight=future_value_weight,
+            tokens_in_hand_weight=tokens_in_hand_weight,
+            tokens_on_card_weight=tokens_on_card_weight,
+            cards_in_draw_pile_weight=cards_in_draw_pile_weight,
+            number_of_opponents_weight=number_of_opponents_weight,
+            cards_in_front_of_this_player_weight=cards_in_front_of_this_player_weight,
+            cards_in_front_of_other_players_weight=cards_in_front_of_other_players_weight,
+        )
 
     def __init__(
         self,
