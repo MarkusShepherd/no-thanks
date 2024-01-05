@@ -1,15 +1,15 @@
 """Players."""
 
 import logging
+import random
 
-from random import random
 from statistics import NormalDist
 from typing import Dict, Optional
 
 import inquirer
 
-from .core import Action, Player
-from .utils import sigmoid
+from no_thanks.core import Action, Player
+from no_thanks.utils import sigmoid
 
 LOGGER = logging.getLogger(__name__)
 
@@ -45,7 +45,9 @@ class Heuristic(Player):
         """Choose an action based on heuristics."""
         proba = self.take_proba()
         LOGGER.info("Probability of %s: %.1f%%", Action.TAKE, 100 * proba)
-        return Action.TAKE if self.tokens <= 0 or random() <= proba else Action.PASS
+        return (
+            Action.TAKE if self.tokens <= 0 or random.random() <= proba else Action.PASS
+        )
 
     def take_proba(self) -> float:
         """Probability to play TAKE."""
@@ -205,3 +207,65 @@ class ParametricHeuristic(Heuristic):
         )
 
         return sigmoid(logit)
+
+    def mutate(self, mean: float = 0.0, std: float = 1.0) -> "ParametricHeuristic":
+        """Randomly mutate on of the weight parameters."""
+
+        dict_attrs = (
+            "cards_in_front_of_this_player_weight",
+            "cards_in_front_of_other_players_weight",
+        )
+        attrs = (
+            "current_card_weight",
+            "current_value_weight",
+            "future_value_weight",
+            "tokens_in_hand_weight",
+            "tokens_on_card_weight",
+            "cards_in_draw_pile_weight",
+            "number_of_opponents_weight",
+        ) + dict_attrs
+
+        attr = random.choice(attrs)
+
+        if attr in dict_attrs:
+            distance = random.choice(self.CARD_DISTANCES)
+            getattr(self, attr)[distance] = NormalDist(mean, std).samples(1)[0]
+        else:
+            setattr(self, attr, NormalDist(mean, std).samples(1)[0])
+
+        return self
+
+    @classmethod
+    def mate(cls, *parents: "ParametricHeuristic", name: str) -> "ParametricHeuristic":
+        """Mate two (or more) parents to create a child."""
+
+        attrs = (
+            "current_card_weight",
+            "current_value_weight",
+            "future_value_weight",
+            "tokens_in_hand_weight",
+            "tokens_on_card_weight",
+            "cards_in_draw_pile_weight",
+            "number_of_opponents_weight",
+        )
+        kwargs = {
+            attr: sum(getattr(parent, attr) for parent in parents) / len(parents)
+            for attr in attrs
+        }
+
+        kwargs["cards_in_front_of_this_player_weight"] = {
+            d: sum(parent.cards_in_front_of_this_player_weight[d] for parent in parents)
+            / len(parents)
+            for d in cls.CARD_DISTANCES
+        }
+        kwargs["cards_in_front_of_other_players_weight"] = {
+            d: sum(
+                parent.cards_in_front_of_other_players_weight[d] for parent in parents
+            )
+            / len(parents)
+            for d in cls.CARD_DISTANCES
+        }
+
+        kwargs["name"] = name
+
+        return cls(**kwargs)
