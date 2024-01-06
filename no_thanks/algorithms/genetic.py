@@ -1,9 +1,13 @@
 """Train a strategy using genetic algorithms."""
 
 import logging
+import pickle
 import random
+import re
+import shutil
 import sys
-from typing import Optional, Tuple
+from pathlib import Path
+from typing import Optional, Tuple, Union
 
 import tqdm
 
@@ -11,6 +15,7 @@ from no_thanks.core import Game
 from no_thanks.players import ParametricHeuristic
 
 LOGGER = logging.getLogger(__name__)
+UNSAFE_CHARACTERS = re.compile(r"[^\w\-_. ]")
 
 
 class GeneticTrainer:
@@ -84,7 +89,11 @@ class GeneticTrainer:
 
         return game
 
-    def play_generation(self, evolve_population: bool = True) -> None:
+    def play_generation(
+        self,
+        evolve_population: bool = True,
+        save_dir: Union[None, str, Path] = None,
+    ) -> None:
         """Play a generation."""
 
         assert self.population is not None, "Population not initialized"
@@ -116,6 +125,9 @@ class GeneticTrainer:
             self.population[-1].elo_rating,
         )
         LOGGER.warning("Finished generation #%05d", self.current_generation)
+
+        if save_dir:
+            self.save_population(save_dir, overwrite=True)
 
         if not evolve_population:
             return
@@ -165,14 +177,43 @@ class GeneticTrainer:
                 player.mutate(mean=0.0, std=10.0)
                 player.name += f" [mutated gen #{self.current_generation:05d}]"
 
-    def train(self) -> None:
+    def save_population(
+        self,
+        save_dir: Union[str, Path],
+        overwrite: bool = False,
+    ) -> None:
+        """Save the population to a directory."""
+
+        assert self.population is not None, "Population not initialized"
+
+        save_dir = Path(save_dir).resolve()
+        LOGGER.info("Saving current population to <%s>", save_dir)
+
+        if save_dir.exists():
+            if overwrite:
+                shutil.rmtree(save_dir)
+            else:
+                raise FileExistsError(f"Directory <{save_dir}> already exists")
+        save_dir.mkdir(parents=True, exist_ok=True)
+
+        for player in self.population:
+            # Sanitize the file name
+            sanitized_name = UNSAFE_CHARACTERS.sub("", player.name)
+            file_name = f"{sanitized_name}.pickle"
+            file_path = save_dir / file_name
+            with file_path.open("wb") as file:
+                pickle.dump(player, file)
+
+    def train(self, save_dir: Union[None, str, Path] = None) -> None:
         """Train a strategy."""
 
         assert self.population is not None, "Population not initialized"
 
         for i in range(self.generations):
             last_generation = i == self.generations - 1
-            self.play_generation(evolve_population=not last_generation)
+            self.play_generation(
+                evolve_population=not last_generation, save_dir=save_dir
+            )
 
 
 def main():
@@ -186,7 +227,7 @@ def main():
 
     trainer = GeneticTrainer()
     trainer.reset()
-    trainer.train()
+    trainer.train(save_dir=Path(__file__).parent.parent.parent / "trained_strategies")
 
     for player in trainer.population[:10]:
         print(player.name, player.elo_rating, player.strategy_weights)
