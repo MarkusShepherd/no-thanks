@@ -20,7 +20,7 @@ class GeneticTrainer:
         self,
         population_size: int = 100,
         games_per_generation: int = 1000,
-        generations: int = 10000,
+        generations: int = 1000,
         inheritance_rate: float = 0.7,
         reproduction_rate: float = 0.25,
         mutation_rate: float = 0.05,
@@ -184,11 +184,11 @@ def main():
         format="%(levelname)-4.4s [%(name)s:%(lineno)s] %(message)s",
     )
 
-    trainer = GeneticTrainer(generations=100)
+    trainer = GeneticTrainer()
     trainer.reset()
     trainer.train()
 
-    for player in trainer.population[:3]:
+    for player in trainer.population[:10]:
         print(player.name, player.elo_rating, player.strategy_weights)
 
 
