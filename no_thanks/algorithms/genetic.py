@@ -15,7 +15,7 @@ from no_thanks.core import Game
 from no_thanks.players import ParametricHeuristic
 
 LOGGER = logging.getLogger(__name__)
-UNSAFE_CHARACTERS = re.compile(r"[^\w\-_. ]")
+UNSAFE_CHARACTERS = re.compile(r"\W+")
 
 
 class GeneticTrainer:
@@ -59,6 +59,46 @@ class GeneticTrainer:
             )
             for i in range(self.population_size)
         )
+        self.current_population_count = self.population_size
+
+    def resume(
+        self,
+        save_dir: Union[str, Path],
+        *,
+        mean: float = 0.0,
+        std: float = 10.0,
+    ) -> None:
+        """Load a population from a directory."""
+
+        save_dir = Path(save_dir).resolve()
+        LOGGER.info("Loading population from <%s>", save_dir)
+
+        if not save_dir.exists():
+            LOGGER.warning(
+                "Directory <%s> does not exist, random initialization", save_dir
+            )
+            self.reset(mean=mean, std=std)
+            return
+
+        self.population = tuple(
+            pickle.load(file.open("rb"))
+            for file in sorted(save_dir.glob("*.pickle"))[: self.population_size]
+        )
+
+        for player in self.population:
+            player.name += " [resumed]"
+
+        if len(self.population) < self.population_size:
+            self.population += tuple(
+                ParametricHeuristic.random_weights(
+                    name=f"AI #{i:05d} (gen #00000)",
+                    mean=mean,
+                    std=std,
+                )
+                for i in range(len(self.population), self.population_size)
+            )
+
+        self.current_generation = 0
         self.current_population_count = self.population_size
 
     def play_game(
@@ -196,10 +236,10 @@ class GeneticTrainer:
                 raise FileExistsError(f"Directory <{save_dir}> already exists")
         save_dir.mkdir(parents=True, exist_ok=True)
 
-        for player in self.population:
+        for i, player in enumerate(self.population):
             # Sanitize the file name
-            sanitized_name = UNSAFE_CHARACTERS.sub("", player.name)
-            file_name = f"{sanitized_name}.pickle"
+            sanitized_name = UNSAFE_CHARACTERS.sub("_", player.name)
+            file_name = f"{i + 1:05d}_{sanitized_name}.pickle"
             file_path = save_dir / file_name
             with file_path.open("wb") as file:
                 pickle.dump(player, file)
@@ -225,9 +265,11 @@ def main():
         format="%(levelname)-4.4s [%(name)s:%(lineno)s] %(message)s",
     )
 
-    trainer = GeneticTrainer()
-    trainer.reset()
-    trainer.train(save_dir=Path(__file__).parent.parent.parent / "trained_strategies")
+    save_dir = Path(__file__).parent.parent.parent / "trained_strategies" / "genetic"
+
+    trainer = GeneticTrainer(generations=100)
+    trainer.resume(save_dir=save_dir)
+    trainer.train(save_dir=save_dir)
 
     for player in trainer.population[:10]:
         print(player.name, player.elo_rating, player.strategy_weights)
