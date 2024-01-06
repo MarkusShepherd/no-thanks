@@ -34,7 +34,7 @@ REQUIRES_PYTHON = ">=3.6.0"
 VERSION = None  # will be read from __version__.py
 
 # What packages are required for this module to be executed?
-REQUIRED = ("inquirer",)
+REQUIRED = ("inquirer", "tqdm")
 
 # What packages are optional?
 EXTRAS = {}

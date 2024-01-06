@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
-
 """Core classes."""
 
 import logging
 
 from enum import Enum, auto
 from random import choice, sample
-from typing import Iterable, List, Set, Tuple
+from typing import Iterable, List, Optional, Set, Tuple
 
-from .utils import pairwise
+from no_thanks.elo import calculate_multiplayer_elo_rating_update
+from no_thanks.utils import pairwise
 
 LOGGER = logging.getLogger(__name__)
 
@@ -37,12 +36,12 @@ class Game:
     current_player: int
     tokens_on_card: int
 
-    def __init__(self: "Game", players: Iterable["Player"]) -> None:
+    def __init__(self, players: Iterable["Player"]) -> None:
         self.players = tuple(players)
         assert self.NUM_PLAYERS_MIN <= len(self.players) <= self.NUM_PLAYERS_MAX
         self.reset()
 
-    def reset(self: "Game") -> None:
+    def reset(self) -> None:
         """Reset the game."""
 
         self.current_player = 0
@@ -58,27 +57,27 @@ class Game:
             k=self.CARD_MAX - self.NUM_CARDS_DISCARD,
         )
 
-        LOGGER.info("Draw pile: %s", ", ".join(map(str, self.draw_pile)))
+        LOGGER.debug("Draw pile: %s", ", ".join(map(str, self.draw_pile)))
 
     @property
-    def finished(self: "Game") -> bool:
+    def finished(self) -> bool:
         """Has this game finished?"""
         return not self.draw_pile
 
     @property
-    def sort_players(self: "Game") -> Tuple["Player", ...]:
+    def sort_players(self) -> Tuple["Player", ...]:
         """Sort players by their score."""
         attr = "score" if self.finished else "score_cards"
         return tuple(sorted(self.players, key=lambda player: -getattr(player, attr)))
 
-    def play(self: "Game") -> Tuple["Player", ...]:
+    def play(self) -> Tuple["Player", ...]:
         """Play the game."""
 
         LOGGER.info("Starting a game with %d players", len(self.players))
 
         while not self.finished:
             player = self.players[self.current_player]
-            LOGGER.info(
+            LOGGER.debug(
                 "Card: %d; token(s): %d; card(s) remaining: %d, active player: %s",
                 self.draw_pile[0],
                 self.tokens_on_card,
@@ -88,12 +87,12 @@ class Game:
 
             action = player.action()
             assert action is Action.TAKE or player.tokens > 0
-            LOGGER.info("%s chose action: %s", player, action)
+            LOGGER.debug("%s chose action: %s", player, action)
 
             if action is Action.TAKE:
                 player.cards.add(self.draw_pile.pop(0))
                 player.tokens += self.tokens_on_card
-                LOGGER.info(
+                LOGGER.debug(
                     "%s now has %d token(s) and runs: %s",
                     player,
                     player.tokens,
@@ -124,6 +123,33 @@ class Game:
 
         return results
 
+    def update_elo_ratings(self) -> None:
+        """Update the ELO ratings of the players."""
+
+        assert self.finished, "Game must be finished before updating ELO ratings"
+
+        players = self.sort_players
+        elo_ratings = tuple(player.elo_rating for player in players)
+        scores = tuple(player.score for player in players)
+
+        updates = calculate_multiplayer_elo_rating_update(
+            elo_ratings=elo_ratings,
+            scores=scores,
+        )
+
+        new_elo_ratings = tuple(
+            elo_rating + update for elo_rating, update in zip(elo_ratings, updates)
+        )
+
+        LOGGER.info(
+            "ELO ratings before game: %s; after game: %s",
+            elo_ratings,
+            new_elo_ratings,
+        )
+
+        for player, elo_rating in zip(players, new_elo_ratings):
+            player.elo_rating = elo_rating
+
 
 def _make_runs(cards: Iterable[int]) -> Iterable[Iterable[int]]:
     cards = sorted(cards)
@@ -143,37 +169,40 @@ class Player:
     """A player."""
 
     name: str
+    elo_rating: float
+
     game: Game
     tokens: int
     cards: Set[int]
 
-    def __init__(self: "Player", name: str) -> None:
+    def __init__(self, name: str, elo_rating: Optional[float] = None) -> None:
         self.name = name
+        self.elo_rating = elo_rating or 1200
 
-    def __str__(self: "Player") -> str:
+    def __str__(self) -> str:
         return f"Player <{self.name}>"
 
-    def reset(self: "Player", game: Game, tokens: int) -> None:
+    def reset(self, game: Game, tokens: int) -> None:
         """Reset the player."""
         self.game = game
         self.tokens = tokens
         self.cards = set()
 
-    def action(self: "Player") -> Action:
+    def action(self) -> Action:
         """Choose an action."""
         return Action.TAKE if self.tokens <= 0 else choice(ACTIONS)
 
     @property
-    def runs(self: "Player") -> Tuple[Tuple[int, ...], ...]:
+    def runs(self) -> Tuple[Tuple[int, ...], ...]:
         """The sequencial runs formed by this player's cards."""
         return tuple(tuple(run) for run in _make_runs(self.cards))
 
     @property
-    def score_cards(self: "Player") -> int:
+    def score_cards(self) -> int:
         """Minus points incurred from cards."""
         return sum(-run[0] for run in self.runs)
 
     @property
-    def score(self: "Player") -> int:
+    def score(self) -> int:
         """Total score."""
         return self.score_cards + self.tokens
