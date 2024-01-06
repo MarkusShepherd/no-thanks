@@ -9,6 +9,7 @@ python_version = "3.11"
 [packages]
 inquirer = "*"
 tqdm = "*"
+torch = "*"
 
 [dev-packages]
 black = "*"
