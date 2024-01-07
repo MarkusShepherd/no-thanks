@@ -125,13 +125,14 @@ class GeneticPlayer(HeuristicPlayer):
 
         return sigmoid(logit)
 
-    def mutate(self, mean: Optional[float] = None, std: float = 1.0) -> "GeneticPlayer":
-        """Randomly mutate on of the weight parameters."""
+    def mutate(self, std: float = 1.0) -> "GeneticPlayer":
+        """Randomly mutate one of the weight parameters."""
 
         fields = dataclasses.fields(GeneticStrategyWeights)
         field = random.choice(fields)
-        mean_or_default: float = field.default if mean is None else mean  # type: ignore[assignment]
-        new_value = NormalDist(mean_or_default, std).samples(1)[0]
+
+        mutation_value = NormalDist(0, std).samples(1)[0]
+        new_value = getattr(self.strategy_weights, field.name) + mutation_value
         kwargs = {field.name: new_value}
 
         self.strategy_weights = dataclasses.replace(self.strategy_weights, **kwargs)
@@ -349,7 +350,7 @@ class GeneticTrainer:
         for player in self.population:
             player.elo_rating = 1200
             if random.random() < self.mutation_rate:
-                player.mutate(mean=0.0, std=1.0)
+                player.mutate(std=1.0)
                 player.name += f" [mutated gen #{self.current_generation:05d}]"
 
     def save_population(
