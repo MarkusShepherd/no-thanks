@@ -5,7 +5,9 @@ import logging
 
 from enum import Enum, auto
 from random import choice, sample
-from typing import Iterable, List, Optional, Set, Tuple
+from typing import Any, Iterable, List, Optional, Set, Tuple
+
+import numpy as np
 
 from no_thanks.elo import calculate_multiplayer_elo_rating_update
 from no_thanks.utils import pairwise
@@ -47,6 +49,58 @@ class GameState:
     card_p1_in_front_of_other_players: bool
     card_p2_in_front_of_other_players: bool
     card_p3_in_front_of_other_players: bool
+
+    def to_array(self) -> np.ndarray[Any, np.dtype[np.int8]]:
+        """Convert to a numpy array."""
+
+        return np.array(
+            [
+                self.number_of_opponents,
+                self.cards_in_draw_pile,
+                self.current_card,
+                self.tokens_on_card,
+                self.tokens_in_hand_of_this_player,
+                self.card_m3_in_front_of_this_player,
+                self.card_m2_in_front_of_this_player,
+                self.card_m1_in_front_of_this_player,
+                self.card_p1_in_front_of_this_player,
+                self.card_p2_in_front_of_this_player,
+                self.card_p3_in_front_of_this_player,
+                self.card_m3_in_front_of_other_players,
+                self.card_m2_in_front_of_other_players,
+                self.card_m1_in_front_of_other_players,
+                self.card_p1_in_front_of_other_players,
+                self.card_p2_in_front_of_other_players,
+                self.card_p3_in_front_of_other_players,
+            ],
+            dtype=np.int8,
+        )
+
+    @classmethod
+    def from_array(cls, array: np.ndarray[Any, np.dtype[np.int8]]) -> "GameState":
+        """Convert from a numpy array."""
+
+        assert array.shape == (len(dataclasses.fields(cls)),)
+
+        return cls(
+            number_of_opponents=array[0],
+            cards_in_draw_pile=array[1],
+            current_card=array[2],
+            tokens_on_card=array[3],
+            tokens_in_hand_of_this_player=array[4],
+            card_m3_in_front_of_this_player=bool(array[5]),
+            card_m2_in_front_of_this_player=bool(array[6]),
+            card_m1_in_front_of_this_player=bool(array[7]),
+            card_p1_in_front_of_this_player=bool(array[8]),
+            card_p2_in_front_of_this_player=bool(array[9]),
+            card_p3_in_front_of_this_player=bool(array[10]),
+            card_m3_in_front_of_other_players=bool(array[11]),
+            card_m2_in_front_of_other_players=bool(array[12]),
+            card_m1_in_front_of_other_players=bool(array[13]),
+            card_p1_in_front_of_other_players=bool(array[14]),
+            card_p2_in_front_of_other_players=bool(array[15]),
+            card_p3_in_front_of_other_players=bool(array[16]),
+        )
 
 
 class Game:
