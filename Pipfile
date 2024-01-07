@@ -8,8 +8,9 @@ python_version = "3.11"
 
 [packages]
 inquirer = "*"
-tqdm = "*"
+numpy = "*"
 torch = "*"
+tqdm = "*"
 
 [dev-packages]
 black = "*"
