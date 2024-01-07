@@ -9,8 +9,12 @@ import sys
 
 from typing import List, Optional, Union
 
-from no_thanks.algorithms.genetic import GeneticPlayer
-from no_thanks.core import Game, Player
+# pylint: disable-next=unused-import
+from no_thanks.algorithms.genetic import (
+    GeneticPlayer,
+    GeneticStrategyWeights,
+)
+from no_thanks.core import Game
 from no_thanks.players import HeuristicPlayer, HumanPlayer
 
 LOGGER = logging.getLogger(__name__)
@@ -54,6 +58,9 @@ def load_strategies(
 ) -> List[HeuristicPlayer]:
     """Load strategies from disk."""
 
+    if num_strategies <= 0:
+        return []
+
     save_dir = Path(save_dir).resolve()
     file_paths = sorted(save_dir.glob("*.pickle")) if save_dir.is_dir() else ()
 
@@ -63,9 +70,9 @@ def load_strategies(
             save_dir,
         )
         return [
-            HeuristicPlayer(name=f"AI #{i + 1}")
+            HeuristicPlayer(name=f"H #{i + 1}")
             if random.random() < 0.5
-            else GeneticPlayer.random_weights(name=f"PAI #{i + 1}")
+            else GeneticPlayer.random_weights(name=f"GA #{i + 1}")
             for i in range(num_strategies)
         ]
 
@@ -100,11 +107,18 @@ def main() -> None:
     num_players = max(args.players, len(names))
     assert Game.NUM_PLAYERS_MIN <= num_players <= Game.NUM_PLAYERS_MAX
 
-    players: List[Player] = [HumanPlayer(name=name) for name in names]
-    players += load_strategies(
-        save_dir=args.strategies_dir,
-        num_strategies=num_players - len(players),
-        top_strategies=2 * num_players,
+    num_humans = len(names)
+    num_heuristics = 1 if num_humans < num_players else 0
+    num_genetics = max(num_players - num_humans - num_heuristics, 0)
+
+    players = (
+        [HumanPlayer(name=name) for name in names]
+        + [HeuristicPlayer(name=f"H #{i + 1}") for i in range(num_heuristics)]
+        + load_strategies(
+            save_dir=args.strategies_dir,
+            num_strategies=num_genetics,
+            top_strategies=2 * num_players,
+        )
     )
 
     game = Game(players=players)
