@@ -99,6 +99,7 @@ class Game:
 
     def state(self, player: "Player") -> GameState:
         """Get the state of the game from the perspective of a player."""
+
         assert not self.finished, "Game must not be finished"
         assert self.draw_pile, "Game must not be finished"
         assert (

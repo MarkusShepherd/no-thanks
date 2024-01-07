@@ -7,13 +7,14 @@ import random
 import re
 import shutil
 from statistics import NormalDist
+import statistics
 import sys
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
+from typing import Optional, Tuple, Union
 
 import tqdm
 
-from no_thanks.core import Game
+from no_thanks.core import Game, GameState
 from no_thanks.players import HeuristicPlayer
 from no_thanks.utils import sigmoid
 
@@ -32,14 +33,24 @@ class GeneticStrategyWeights:
     tokens_on_card_weight: float = 0.0
     cards_in_draw_pile_weight: float = 0.0
     number_of_opponents_weight: float = 0.0
-    cards_in_front_of_this_player_weight: Dict[int, float]
-    cards_in_front_of_other_players_weight: Dict[int, float]
+
+    card_m3_in_front_of_this_player_weight: float = 0.0
+    card_m2_in_front_of_this_player_weight: float = 0.0
+    card_m1_in_front_of_this_player_weight: float = 0.0
+    card_p1_in_front_of_this_player_weight: float = 0.0
+    card_p2_in_front_of_this_player_weight: float = 0.0
+    card_p3_in_front_of_this_player_weight: float = 0.0
+
+    card_m3_in_front_of_other_players_weight: float = 0.0
+    card_m2_in_front_of_other_players_weight: float = 0.0
+    card_m1_in_front_of_other_players_weight: float = 0.0
+    card_p1_in_front_of_other_players_weight: float = 0.0
+    card_p2_in_front_of_other_players_weight: float = 0.0
+    card_p3_in_front_of_other_players_weight: float = 0.0
 
 
 class GeneticPlayer(HeuristicPlayer):
     """Use heuristics with parameters to choose actions."""
-
-    CARD_DISTANCES = (-3, -2, -1, +1, +2, +3)
 
     @classmethod
     def random_weights(
@@ -52,45 +63,12 @@ class GeneticPlayer(HeuristicPlayer):
 
         dist = NormalDist(mean, std)
 
-        (
-            current_card_weight,
-            current_value_weight,
-            future_value_weight,
-            tokens_in_hand_weight,
-            tokens_on_card_weight,
-            cards_in_draw_pile_weight,
-            number_of_opponents_weight,
-        ) = dist.samples(7)
+        fields = dataclasses.fields(GeneticStrategyWeights)
+        values = dist.samples(len(fields))
+        kwargs = dict(zip((f.name for f in fields), values))
+        strategy_weights = GeneticStrategyWeights(**kwargs)
 
-        cards_in_front_of_this_player_weight = dict(
-            zip(
-                cls.CARD_DISTANCES,
-                dist.samples(len(cls.CARD_DISTANCES)),
-            )
-        )
-        cards_in_front_of_other_players_weight = dict(
-            zip(
-                cls.CARD_DISTANCES,
-                dist.samples(len(cls.CARD_DISTANCES)),
-            )
-        )
-
-        strategy_weights = GeneticStrategyWeights(
-            current_card_weight=current_card_weight,
-            current_value_weight=current_value_weight,
-            future_value_weight=future_value_weight,
-            tokens_in_hand_weight=tokens_in_hand_weight,
-            tokens_on_card_weight=tokens_on_card_weight,
-            cards_in_draw_pile_weight=cards_in_draw_pile_weight,
-            number_of_opponents_weight=number_of_opponents_weight,
-            cards_in_front_of_this_player_weight=cards_in_front_of_this_player_weight,
-            cards_in_front_of_other_players_weight=cards_in_front_of_other_players_weight,
-        )
-
-        return cls(
-            name=name,
-            strategy_weights=strategy_weights,
-        )
+        return cls(name=name, strategy_weights=strategy_weights)
 
     def __init__(
         self,
@@ -102,94 +80,61 @@ class GeneticPlayer(HeuristicPlayer):
         super().__init__(name=name, elo_rating=elo_rating)
         self.strategy_weights = strategy_weights
 
-        for i in self.CARD_DISTANCES:
-            self.strategy_weights.cards_in_front_of_this_player_weight.setdefault(
-                i, 0.0
-            )
-            self.strategy_weights.cards_in_front_of_other_players_weight.setdefault(
-                i, 0.0
-            )
-
     def take_proba(self) -> float:
         """Probability to play TAKE depending on chose parameters."""
 
-        number_of_opponents = len(self.game.players) - 1
-        cards_in_draw_pile = len(self.game.draw_pile)
-        current_card = self.game.draw_pile[0]
-        tokens_on_card = self.game.tokens_on_card
-        tokens_in_hand = self.tokens
-        current_value = current_card - tokens_on_card - 1
-        future_value = current_value - number_of_opponents
-
-        cards_in_front_of_this_player = {
-            d: current_card + d in self.cards for d in self.CARD_DISTANCES
-        }
-        cards_in_front_of_other_players = {
-            d: any(
-                current_card + d in opponent.cards
-                for opponent in self.game.players
-                if opponent is not self
-            )
-            for d in self.CARD_DISTANCES
-        }
-
-        # if (tokens_in_hand <= 0) or (current_value <= 0):
-        #     return 1
-
-        # if (
-        #     cards_in_front_of_this_player[1]
-        #     or cards_in_front_of_this_player[-1]
-        # ) and (future_value <= 0):
-        #     return 1
+        state: GameState = self.game.state(self)
+        current_value = state.current_card - state.tokens_on_card - 1
+        future_value = current_value - state.number_of_opponents
 
         logit = (
-            self.strategy_weights.current_card_weight * current_card
+            self.strategy_weights.current_card_weight * state.current_card
             + self.strategy_weights.current_value_weight * current_value
             + self.strategy_weights.future_value_weight * future_value
-            + self.strategy_weights.tokens_in_hand_weight * tokens_in_hand
-            + self.strategy_weights.tokens_on_card_weight * tokens_on_card
-            + self.strategy_weights.cards_in_draw_pile_weight * cards_in_draw_pile
-            + self.strategy_weights.number_of_opponents_weight * number_of_opponents
-            + sum(
-                self.strategy_weights.cards_in_front_of_this_player_weight[k] * v
-                for k, v in cards_in_front_of_this_player.items()
-            )
-            + sum(
-                self.strategy_weights.cards_in_front_of_other_players_weight[k] * v
-                for k, v in cards_in_front_of_other_players.items()
-            )
+            + self.strategy_weights.tokens_in_hand_weight
+            * state.tokens_in_hand_of_this_player
+            + self.strategy_weights.tokens_on_card_weight * state.tokens_on_card
+            + self.strategy_weights.cards_in_draw_pile_weight * state.cards_in_draw_pile
+            + self.strategy_weights.number_of_opponents_weight
+            * state.number_of_opponents
+            + self.strategy_weights.card_m3_in_front_of_this_player_weight
+            * state.card_m3_in_front_of_this_player
+            + self.strategy_weights.card_m2_in_front_of_this_player_weight
+            * state.card_m2_in_front_of_this_player
+            + self.strategy_weights.card_m1_in_front_of_this_player_weight
+            * state.card_m1_in_front_of_this_player
+            + self.strategy_weights.card_p1_in_front_of_this_player_weight
+            * state.card_p1_in_front_of_this_player
+            + self.strategy_weights.card_p2_in_front_of_this_player_weight
+            * state.card_p2_in_front_of_this_player
+            + self.strategy_weights.card_p3_in_front_of_this_player_weight
+            * state.card_p3_in_front_of_this_player
+            + self.strategy_weights.card_m3_in_front_of_other_players_weight
+            * state.card_m3_in_front_of_other_players
+            + self.strategy_weights.card_m2_in_front_of_other_players_weight
+            * state.card_m2_in_front_of_other_players
+            + self.strategy_weights.card_m1_in_front_of_other_players_weight
+            * state.card_m1_in_front_of_other_players
+            + self.strategy_weights.card_p1_in_front_of_other_players_weight
+            * state.card_p1_in_front_of_other_players
+            + self.strategy_weights.card_p2_in_front_of_other_players_weight
+            * state.card_p2_in_front_of_other_players
+            + self.strategy_weights.card_p3_in_front_of_other_players_weight
+            * state.card_p3_in_front_of_other_players
         )
 
         return sigmoid(logit)
 
-    def mutate(self, mean: float = 0.0, std: float = 1.0) -> "GeneticPlayer":
+    def mutate(self, mean: Optional[float] = None, std: float = 1.0) -> "GeneticPlayer":
         """Randomly mutate on of the weight parameters."""
 
-        dict_attrs = (
-            "cards_in_front_of_this_player_weight",
-            "cards_in_front_of_other_players_weight",
-        )
-        attrs = (
-            "current_card_weight",
-            "current_value_weight",
-            "future_value_weight",
-            "tokens_in_hand_weight",
-            "tokens_on_card_weight",
-            "cards_in_draw_pile_weight",
-            "number_of_opponents_weight",
-        ) + dict_attrs
+        fields = dataclasses.fields(GeneticStrategyWeights)
+        field = random.choice(fields)
+        mean_or_default: float = field.default if mean is None else mean  # type: ignore[assignment]
+        new_value = NormalDist(mean_or_default, std).samples(1)[0]
+        kwargs = {field.name: new_value}
 
-        attr = random.choice(attrs)
-        new_value = NormalDist(mean, std).samples(1)[0]
-
-        if attr in dict_attrs:
-            distance = random.choice(self.CARD_DISTANCES)
-            getattr(self.strategy_weights, attr)[distance] = new_value
-        else:
-            self.strategy_weights = dataclasses.replace(
-                self.strategy_weights,
-                **{attr: new_value},  # type: ignore[arg-type]
-            )
+        self.strategy_weights = dataclasses.replace(self.strategy_weights, **kwargs)
 
         return self
 
@@ -197,38 +142,12 @@ class GeneticPlayer(HeuristicPlayer):
     def mate(cls, *parents: "GeneticPlayer", name: str) -> "GeneticPlayer":
         """Mate two (or more) parents to create a child."""
 
-        attrs = (
-            "current_card_weight",
-            "current_value_weight",
-            "future_value_weight",
-            "tokens_in_hand_weight",
-            "tokens_on_card_weight",
-            "cards_in_draw_pile_weight",
-            "number_of_opponents_weight",
-        )
         kwargs = {
-            attr: sum(getattr(parent.strategy_weights, attr) for parent in parents)
-            / len(parents)
-            for attr in attrs
-        }
-
-        kwargs["cards_in_front_of_this_player_weight"] = {
-            d: sum(
-                parent.strategy_weights.cards_in_front_of_this_player_weight[d]
-                for parent in parents
+            f.name: statistics.mean(
+                getattr(parent.strategy_weights, f.name) for parent in parents
             )
-            / len(parents)
-            for d in cls.CARD_DISTANCES
+            for f in dataclasses.fields(GeneticStrategyWeights)
         }
-        kwargs["cards_in_front_of_other_players_weight"] = {
-            d: sum(
-                parent.strategy_weights.cards_in_front_of_other_players_weight[d]
-                for parent in parents
-            )
-            / len(parents)
-            for d in cls.CARD_DISTANCES
-        }
-
         strategy_weights = GeneticStrategyWeights(**kwargs)
 
         return cls(name=name, strategy_weights=strategy_weights)
