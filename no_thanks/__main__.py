@@ -9,8 +9,9 @@ import sys
 
 from typing import List, Optional, Union
 
-from .core import Game, Player
-from .players import Heuristic, Human, ParametricHeuristic
+from no_thanks.algorithms.genetic import GeneticPlayer
+from no_thanks.core import Game, Player
+from no_thanks.players import HeuristicPlayer, HumanPlayer
 
 LOGGER = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ def load_strategies(
     save_dir: Union[str, Path],
     num_strategies: int,
     top_strategies: Optional[int] = None,
-) -> List[Heuristic]:
+) -> List[HeuristicPlayer]:
     """Load strategies from disk."""
 
     save_dir = Path(save_dir).resolve()
@@ -62,9 +63,9 @@ def load_strategies(
             save_dir,
         )
         return [
-            Heuristic(name=f"AI #{i + 1}")
+            HeuristicPlayer(name=f"AI #{i + 1}")
             if random.random() < 0.5
-            else ParametricHeuristic.random_weights(name=f"PAI #{i + 1}")
+            else GeneticPlayer.random_weights(name=f"PAI #{i + 1}")
             for i in range(num_strategies)
         ]
 
@@ -99,7 +100,7 @@ def main() -> None:
     num_players = max(args.players, len(names))
     assert Game.NUM_PLAYERS_MIN <= num_players <= Game.NUM_PLAYERS_MAX
 
-    players: List[Player] = [Human(name=name) for name in names]
+    players: List[Player] = [HumanPlayer(name=name) for name in names]
     players += load_strategies(
         save_dir=args.strategies_dir,
         num_strategies=num_players - len(players),
