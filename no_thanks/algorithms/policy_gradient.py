@@ -1,3 +1,5 @@
+"""Policy gradient algorithm."""
+
 from typing import Any, List, Optional
 import numpy as np
 
@@ -10,12 +12,15 @@ from no_thanks.players import HeuristicPlayer
 
 
 class PolicyNetwork(nn.Module):
+    """Policy network."""
+
     def __init__(self, input_size, output_size):
         super().__init__()
         self.fc = nn.Linear(input_size, output_size)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
+        """Forward pass."""
         x = self.fc(x)
         x = self.sigmoid(x)
         return x
@@ -58,7 +63,11 @@ class PolicyGradientPlayer(HeuristicPlayer):
     def take_proba(self) -> float:
         """Probability to play TAKE."""
         state = self.game.state(self)
-        return self.policy_net(torch.FloatTensor(state.to_array()))
+        state_tensor = torch.FloatTensor(state.to_array())
+        print(state_tensor.shape, state_tensor)
+        proba = self.policy_net(state_tensor)
+        print(proba.shape, proba)
+        return proba
 
     def update_weights(self, reward: float) -> None:
         """Update the weights of the policy network."""
