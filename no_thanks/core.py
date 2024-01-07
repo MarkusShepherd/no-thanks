@@ -1,5 +1,6 @@
 """Core classes."""
 
+import dataclasses
 import logging
 
 from enum import Enum, auto
@@ -20,6 +21,32 @@ class Action(Enum):
 
 
 ACTIONS = tuple(Action)
+
+
+@dataclasses.dataclass
+class GameState:
+    """The state of the game from one player's perspective."""
+
+    number_of_opponents: int
+    cards_in_draw_pile: int
+    current_card: int
+
+    tokens_on_card: int
+    tokens_in_hand_of_this_player: int
+
+    card_m3_in_front_of_this_player: bool
+    card_m2_in_front_of_this_player: bool
+    card_m1_in_front_of_this_player: bool
+    card_p1_in_front_of_this_player: bool
+    card_p2_in_front_of_this_player: bool
+    card_p3_in_front_of_this_player: bool
+
+    card_m3_in_front_of_other_players: bool
+    card_m2_in_front_of_other_players: bool
+    card_m1_in_front_of_other_players: bool
+    card_p1_in_front_of_other_players: bool
+    card_p2_in_front_of_other_players: bool
+    card_p3_in_front_of_other_players: bool
 
 
 class Game:
@@ -69,6 +96,48 @@ class Game:
         """Sort players by their score."""
         attr = "score" if self.finished else "score_cards"
         return tuple(sorted(self.players, key=lambda player: -getattr(player, attr)))
+
+    def state(self, player: "Player") -> GameState:
+        """Get the state of the game from the perspective of a player."""
+        assert not self.finished, "Game must not be finished"
+        assert self.draw_pile, "Game must not be finished"
+        assert (
+            player in self.players
+        ), f"Player <{player.name}> does not take part in this game"
+
+        current_card = self.draw_pile[0]
+
+        return GameState(
+            number_of_opponents=len(self.players) - 1,
+            cards_in_draw_pile=len(self.draw_pile) - 1,
+            current_card=current_card,
+            tokens_on_card=self.tokens_on_card,
+            tokens_in_hand_of_this_player=player.tokens,
+            card_m3_in_front_of_this_player=current_card - 3 in player.cards,
+            card_m2_in_front_of_this_player=current_card - 2 in player.cards,
+            card_m1_in_front_of_this_player=current_card - 1 in player.cards,
+            card_p1_in_front_of_this_player=current_card + 1 in player.cards,
+            card_p2_in_front_of_this_player=current_card + 2 in player.cards,
+            card_p3_in_front_of_this_player=current_card + 3 in player.cards,
+            card_m3_in_front_of_other_players=any(
+                current_card - 3 in p.cards for p in self.players if p is not player
+            ),
+            card_m2_in_front_of_other_players=any(
+                current_card - 2 in p.cards for p in self.players if p is not player
+            ),
+            card_m1_in_front_of_other_players=any(
+                current_card - 1 in p.cards for p in self.players if p is not player
+            ),
+            card_p1_in_front_of_other_players=any(
+                current_card + 1 in p.cards for p in self.players if p is not player
+            ),
+            card_p2_in_front_of_other_players=any(
+                current_card + 2 in p.cards for p in self.players if p is not player
+            ),
+            card_p3_in_front_of_other_players=any(
+                current_card + 3 in p.cards for p in self.players if p is not player
+            ),
+        )
 
     def play(self) -> Tuple["Player", ...]:
         """Play the game."""
