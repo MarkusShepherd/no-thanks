@@ -269,7 +269,7 @@ def main():
         Path(__file__).parent.parent.parent / "trained_strategies" / "policy_gradient"
     )
 
-    num_games = 10_000
+    num_games = 1_000_000
     save_frequency = 1000
 
     trainer = PolicyGradientTrainer(num_games=num_games)
