@@ -17,6 +17,7 @@ import tqdm
 
 from no_thanks.core import Action, Game, GameState
 from no_thanks.players import HeuristicPlayer
+from no_thanks.utils import pairwise
 
 LOGGER = logging.getLogger(__name__)
 UNSAFE_CHARACTERS = re.compile(r"\W+")
@@ -25,20 +26,26 @@ UNSAFE_CHARACTERS = re.compile(r"\W+")
 class PolicyNetwork(nn.Module):
     """Policy network."""
 
-    def __init__(self):
+    def __init__(self, hidden_layers: Tuple[int, ...]):
         super().__init__()
-        self.fc = nn.Linear(len(dataclasses.fields(GameState)), 1)
+        features = (len(dataclasses.fields(GameState)),) + hidden_layers + (1,)
+        self.linear_layers = tuple(nn.Linear(i, o) for i, o in pairwise(features))
+        self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         """Forward pass."""
-        x = self.fc(x)
+        for layer in self.linear_layers[:-1]:
+            x = self.relu(layer(x))
+        x = self.linear_layers[-1](x)
         x = self.sigmoid(x)
         return x
 
 
 class PolicyGradientPlayer(HeuristicPlayer):
     """Use policy gradient to choose actions."""
+
+    HIDDEN_LAYERS = (32, 16, 8)
 
     states: List[np.ndarray[Any, np.dtype[np.int8]]]
     actions: List[int]
@@ -68,7 +75,7 @@ class PolicyGradientPlayer(HeuristicPlayer):
         """Load a player."""
         path = Path(path).resolve()
         LOGGER.info("Loading player from <%s>", path)
-        policy_net = PolicyNetwork()
+        policy_net = PolicyNetwork(cls.HIDDEN_LAYERS)
         policy_net.load_state_dict(torch.load(path))
         return cls(name=name, policy_net=policy_net)
 
@@ -171,7 +178,7 @@ class PolicyGradientTrainer:
         self.players = tuple(
             PolicyGradientPlayer(
                 name=f"PG #{i:03d}",
-                policy_net=PolicyNetwork(),
+                policy_net=PolicyNetwork(PolicyGradientPlayer.HIDDEN_LAYERS),
             )
             for i in range(Game.NUM_PLAYERS_MAX)
         )
@@ -191,7 +198,7 @@ class PolicyGradientTrainer:
         self.players += tuple(
             PolicyGradientPlayer(
                 name=f"PG #{i:03d}",
-                policy_net=PolicyNetwork(),
+                policy_net=PolicyNetwork(PolicyGradientPlayer.HIDDEN_LAYERS),
             )
             for i in range(len(self.players), Game.NUM_PLAYERS_MAX)
         )
