@@ -29,7 +29,9 @@ class PolicyNetwork(nn.Module):
     def __init__(self, hidden_layers: Tuple[int, ...]):
         super().__init__()
         features = (len(dataclasses.fields(GameState)),) + hidden_layers + (1,)
-        self.linear_layers = tuple(nn.Linear(i, o) for i, o in pairwise(features))
+        self.linear_layers = nn.ModuleList(
+            nn.Linear(i, o) for i, o in pairwise(features)
+        )
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
 
@@ -267,10 +269,15 @@ def main():
         Path(__file__).parent.parent.parent / "trained_strategies" / "policy_gradient"
     )
 
-    trainer = PolicyGradientTrainer(num_games=10_000)
+    num_games = 10_000
+    save_frequency = 1000
+
+    trainer = PolicyGradientTrainer(num_games=num_games)
     trainer.resume(save_dir=save_dir)
-    trainer.train(save_dir=save_dir, save_frequency=1000)
-    trainer.save_players(save_dir=save_dir, overwrite=True)
+    trainer.train(save_dir=save_dir, save_frequency=save_frequency)
+
+    if (save_frequency % num_games) != 0:
+        trainer.save_players(save_dir=save_dir, overwrite=True)
 
     players = sorted(trainer.players, key=lambda p: p.elo_rating, reverse=True)
     for player in players:
