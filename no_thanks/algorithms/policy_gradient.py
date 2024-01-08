@@ -4,6 +4,8 @@ import dataclasses
 import logging
 from pathlib import Path
 import random
+import re
+import shutil
 import sys
 from typing import Any, List, Optional, Tuple, Union
 import numpy as np
@@ -17,6 +19,7 @@ from no_thanks.core import Action, Game, GameState
 from no_thanks.players import HeuristicPlayer
 
 LOGGER = logging.getLogger(__name__)
+UNSAFE_CHARACTERS = re.compile(r"\W+")
 
 
 class PolicyNetwork(nn.Module):
@@ -53,6 +56,21 @@ class PolicyGradientPlayer(HeuristicPlayer):
         self.policy_net = policy_net
         self.discount_factor = discount_factor
         self.optimizer = optim.Adam(policy_net.parameters(), lr=learning_rate)
+
+    def save(self, path: Union[str, Path]) -> None:
+        """Save the player."""
+        path = Path(path).resolve()
+        LOGGER.info("Saving player <%s> to <%s>", self.name, path)
+        torch.save(self.policy_net.state_dict(), path)
+
+    @classmethod
+    def load(cls, name: str, path: Union[str, Path]) -> "PolicyGradientPlayer":
+        """Load a player."""
+        path = Path(path).resolve()
+        LOGGER.info("Loading player from <%s>", path)
+        policy_net = PolicyNetwork()
+        policy_net.load_state_dict(torch.load(path))
+        return cls(name=name, policy_net=policy_net)
 
     def reset(self, game: Game, tokens: int) -> None:
         """Reset the player."""
@@ -119,8 +137,33 @@ class PolicyGradientTrainer:
     current_game_num: int
     players: Tuple[PolicyGradientPlayer, ...]
 
-    def __init__(self, num_games: int = 1_000):
+    def __init__(self, num_games: int):
         self.num_games = num_games
+
+    def save_players(
+        self,
+        save_dir: Union[str, Path],
+        overwrite: bool = False,
+    ) -> None:
+        """Save the players."""
+
+        save_dir = Path(save_dir).resolve()
+        LOGGER.info("Saving players to <%s>", save_dir)
+
+        if save_dir.exists():
+            if overwrite:
+                shutil.rmtree(save_dir)
+            else:
+                raise FileExistsError(f"Directory <{save_dir}> already exists")
+        save_dir.mkdir(parents=True, exist_ok=True)
+
+        players = sorted(self.players, key=lambda p: p.elo_rating, reverse=True)
+
+        for i, player in enumerate(players):
+            sanitized_name = UNSAFE_CHARACTERS.sub("_", player.name)
+            file_name = f"{i + 1:05d}_{sanitized_name}.pt"
+            file_path = save_dir / file_name
+            player.save(file_path)
 
     def reset(self) -> None:
         """Reset the trainer."""
@@ -135,7 +178,24 @@ class PolicyGradientTrainer:
 
     def resume(self, save_dir: Union[str, Path]) -> None:
         """Resume training."""
-        raise NotImplementedError
+        save_dir = Path(save_dir).resolve()
+        LOGGER.info("Loading players from <%s>", save_dir)
+        self.players = (
+            tuple(
+                PolicyGradientPlayer.load(name=f"PG #{i:03d} [resumed]", path=path)
+                for i, path in enumerate(sorted(save_dir.glob("*.pt")))
+            )
+            if save_dir.exists()
+            else ()
+        )
+        self.players += tuple(
+            PolicyGradientPlayer(
+                name=f"PG #{i:03d}",
+                policy_net=PolicyNetwork(),
+            )
+            for i in range(len(self.players), Game.NUM_PLAYERS_MAX)
+        )
+        self.current_game_num = 0
 
     def play_game(
         self,
@@ -174,11 +234,17 @@ class PolicyGradientTrainer:
 
         return game
 
-    def train(self) -> None:
+    def train(
+        self,
+        save_dir: Union[None, str, Path] = None,
+        save_frequency: int = 1_000,
+    ) -> None:
         """Train policy gradient players."""
 
-        for _ in tqdm.trange(self.num_games):
+        for i in tqdm.trange(self.num_games):
             self.play_game()
+            if save_dir and ((i + 1) % save_frequency == 0):
+                self.save_players(save_dir, overwrite=True)
 
 
 def main():
@@ -190,9 +256,14 @@ def main():
         format="%(levelname)-4.4s [%(name)s:%(lineno)s] %(message)s",
     )
 
+    save_dir = (
+        Path(__file__).parent.parent.parent / "trained_strategies" / "policy_gradient"
+    )
+
     trainer = PolicyGradientTrainer(num_games=10_000)
-    trainer.reset()
-    trainer.train()
+    trainer.resume(save_dir=save_dir)
+    trainer.train(save_dir=save_dir, save_frequency=1000)
+    trainer.save_players(save_dir=save_dir, overwrite=True)
 
     players = sorted(trainer.players, key=lambda p: p.elo_rating, reverse=True)
     for player in players:
