@@ -1,17 +1,22 @@
 """Policy gradient algorithm."""
 
 import dataclasses
+import logging
 from pathlib import Path
 import random
+import sys
 from typing import Any, List, Optional, Tuple, Union
 import numpy as np
 
 import torch
 from torch import nn
 from torch import optim
+import tqdm
 
 from no_thanks.core import Action, Game, GameState
 from no_thanks.players import HeuristicPlayer
+
+LOGGER = logging.getLogger(__name__)
 
 
 class PolicyNetwork(nn.Module):
@@ -67,13 +72,18 @@ class PolicyGradientPlayer(HeuristicPlayer):
         """Probability to play TAKE."""
         state = self.game.state(self)
         state_tensor = torch.FloatTensor(state.to_array())
-        print(state_tensor.shape, state_tensor)
         proba = self.policy_net(state_tensor)
-        print(proba.shape, proba)
-        return proba
+        return proba[0]
 
     def update_weights(self, reward: float) -> None:
         """Update the weights of the policy network."""
+
+        if not self.states or not self.actions:
+            LOGGER.info(
+                "No states or actions recorded, unable to update weights of <%s>",
+                self.name,
+            )
+            return
 
         assert self.states, "No states recorded"
         assert self.actions, "No actions recorded"
@@ -81,27 +91,23 @@ class PolicyGradientPlayer(HeuristicPlayer):
 
         self.optimizer.zero_grad()
 
-        states = torch.FloatTensor(self.states)
-        print(states.shape, states)
+        states = torch.FloatTensor(np.array(self.states))
         actions = torch.LongTensor(self.actions)
-        print(actions.shape, actions)
         rewards = torch.FloatTensor(
             [
                 self.discount_factor**i * reward
                 for i in range(len(self.states) - 1, -1, -1)
             ]
         )
-        print(rewards.shape, rewards)
 
-        action_probs = self.policy_net(states)
-        print(action_probs.shape, action_probs)
-        log_probs = torch.log(action_probs.gather(1, actions.unsqueeze(1)))
-        print(log_probs.shape, log_probs)
+        action_probs = self.policy_net(states).squeeze()
+        log_probs = torch.log(
+            action_probs * actions + (1 - action_probs) * (1 - actions)
+        )
 
         baseline = torch.mean(rewards)
         advantage = rewards - baseline
         policy_loss = -torch.sum(log_probs * advantage)
-        print(policy_loss.shape, policy_loss)
 
         policy_loss.backward()
         self.optimizer.step()
@@ -139,8 +145,6 @@ class PolicyGradientTrainer:
     ) -> Game:
         """Play a game."""
 
-        print(f"Playing game {self.current_game_num + 1} of {self.num_games}…")
-
         min_players = min_players or Game.NUM_PLAYERS_MIN
         max_players = max_players or Game.NUM_PLAYERS_MAX
 
@@ -163,7 +167,7 @@ class PolicyGradientTrainer:
         # TODO: should we increase the penalty for losing by the margin?
         rewards = [-1 if player.score < winning_score else +1 for player in players]
 
-        for player, reward in zip(self.players, rewards):
+        for player, reward in zip(players, rewards):
             player.update_weights(reward)
 
         self.current_game_num += 1
@@ -173,5 +177,28 @@ class PolicyGradientTrainer:
     def train(self) -> None:
         """Train policy gradient players."""
 
-        for _ in range(self.num_games):
+        for _ in tqdm.trange(self.num_games):
             self.play_game()
+
+
+def main():
+    """Main function."""
+
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=logging.WARNING,
+        format="%(levelname)-4.4s [%(name)s:%(lineno)s] %(message)s",
+    )
+
+    trainer = PolicyGradientTrainer(num_games=10_000)
+    trainer.reset()
+    trainer.train()
+
+    players = sorted(trainer.players, key=lambda p: p.elo_rating, reverse=True)
+    for player in players:
+        print(f"{player.name}: {int(player.elo_rating)}")
+        print(player.policy_net.state_dict())
+
+
+if __name__ == "__main__":
+    main()

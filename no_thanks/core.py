@@ -3,7 +3,7 @@
 import dataclasses
 import logging
 
-from enum import Enum, auto
+from enum import Enum
 from random import choice, sample
 from typing import Any, Iterable, List, Optional, Set, Tuple
 
@@ -18,8 +18,8 @@ LOGGER = logging.getLogger(__name__)
 class Action(Enum):
     """Possible actions."""
 
-    TAKE = auto()
-    PASS = auto()
+    PASS = 0
+    TAKE = 1
 
 
 ACTIONS = tuple(Action)
