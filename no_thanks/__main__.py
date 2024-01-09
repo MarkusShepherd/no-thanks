@@ -175,7 +175,7 @@ def main() -> None:
         + load_policy_gradient_players(
             save_dir=args.policy_gradient_strategies_dir,
             num_strategies=num_pgs,
-            top_strategies=num_pgs,
+            top_strategies=2 * num_players,
         )
     )
 

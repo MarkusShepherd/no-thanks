@@ -120,10 +120,10 @@ class PolicyGradientPlayer(HeuristicPlayer):
 
         states = torch.FloatTensor(np.array(self.states))
         actions = torch.LongTensor(self.actions)
-        rewards = torch.FloatTensor(
+        discounted_rewards = torch.FloatTensor(
             [
                 self.discount_factor**i * reward
-                for i in range(len(self.states) - 1, -1, -1)
+                for i in reversed(range(len(self.states)))
             ]
         )
 
@@ -132,8 +132,8 @@ class PolicyGradientPlayer(HeuristicPlayer):
             action_probs * actions + (1 - action_probs) * (1 - actions)
         )
 
-        baseline = torch.mean(rewards)
-        advantage = rewards - baseline
+        baseline = torch.mean(discounted_rewards)
+        advantage = (discounted_rewards - baseline) / torch.std(discounted_rewards)
         policy_loss = -torch.sum(log_probs * advantage)
 
         policy_loss.backward()
