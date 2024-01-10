@@ -7,16 +7,16 @@ import random
 import re
 import shutil
 import sys
-from typing import Any, List, Optional, Tuple, Union
-import numpy as np
+from typing import List, Optional, Tuple, Union
 
 import torch
 from torch import nn
+from torch.nn import functional as F
 from torch import optim
+from torch.distributions import Categorical
 import tqdm
 
-from no_thanks.core import Action, Game, GameState
-from no_thanks.players import HeuristicPlayer
+from no_thanks.core import Action, Game, GameState, Player
 from no_thanks.utils import pairwise
 
 LOGGER = logging.getLogger(__name__)
@@ -28,37 +28,34 @@ class PolicyNetwork(nn.Module):
 
     def __init__(self, hidden_layers: Tuple[int, ...]):
         super().__init__()
-        features = (len(dataclasses.fields(GameState)),) + hidden_layers + (1,)
+        features = (len(dataclasses.fields(GameState)),) + hidden_layers + (2,)
         self.linear_layers = nn.ModuleList(
             nn.Linear(i, o) for i, o in pairwise(features)
         )
-        self.relu = nn.ReLU()
-        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         """Forward pass."""
         for layer in self.linear_layers[:-1]:
-            x = self.relu(layer(x))
+            x = F.relu(layer(x))
         x = self.linear_layers[-1](x)
-        x = self.sigmoid(x)
+        x = F.softmax(x, dim=-1)
         return x
 
 
-class PolicyGradientPlayer(HeuristicPlayer):
+class PolicyGradientPlayer(Player):
     """Use policy gradient to choose actions."""
 
     HIDDEN_LAYERS = (32, 16, 8)
 
-    states: List[np.ndarray[Any, np.dtype[np.int8]]]
-    actions: List[int]
+    log_probas: List[torch.Tensor]
 
     def __init__(
         self,
         name: str,
         policy_net: PolicyNetwork,
         *,
-        discount_factor: float = 0.99,
-        learning_rate: float = 0.01,
+        discount_factor: float = 0.9,
+        learning_rate: float = 0.00001,
         elo_rating: Optional[float] = None,
     ):
         super().__init__(name, elo_rating=elo_rating)
@@ -84,60 +81,58 @@ class PolicyGradientPlayer(HeuristicPlayer):
     def reset(self, game: Game, tokens: int) -> None:
         """Reset the player."""
         super().reset(game, tokens)
-        self.states = []
-        self.actions = []
+        self.log_probas = []
 
     def action(self) -> Action:
         """Choose an action based on policy gradient."""
-        state = self.game.state(self)
-        self.states.append(state.to_array())
-        action = super().action()
-        self.actions.append(action.value)
-        return action
-
-    def take_proba(self) -> float:
-        """Probability to play TAKE."""
-        state = self.game.state(self)
-        state_tensor = torch.FloatTensor(state.to_array())
+        if self.tokens <= 0:
+            # TODO: should we give a negative reward
+            # to nudge the policy towards taking cards
+            # when we have no tokens in hand?
+            return Action.TAKE
+        state = self.game.state(self).to_array()
+        state_tensor = torch.FloatTensor(state)
         proba = self.policy_net(state_tensor)
-        return proba[0]
+
+        distro = Categorical(proba)
+        action = distro.sample()
+        self.log_probas.append(torch.log(proba[action]))
+        LOGGER.debug(
+            "Probability of %s: %.1f%%; actual action: %s",
+            Action.TAKE,
+            100 * proba[1],
+            Action(action.item()),
+        )
+
+        return Action(action.item())
 
     def update_weights(self, reward: float) -> None:
         """Update the weights of the policy network."""
 
-        if not self.states or not self.actions:
+        if not self.log_probas:
             LOGGER.info(
                 "No states or actions recorded, unable to update weights of <%s>",
                 self.name,
             )
             return
 
-        assert self.states, "No states recorded"
-        assert self.actions, "No actions recorded"
-        assert len(self.actions) == len(self.states), "States and actions mismatch"
+        assert self.log_probas, "No log probabilities recorded"
 
-        self.optimizer.zero_grad()
-
-        states = torch.FloatTensor(np.array(self.states))
-        actions = torch.LongTensor(self.actions)
+        log_probas = torch.stack(self.log_probas)
         discounted_rewards = torch.FloatTensor(
             [
                 self.discount_factor**i * reward
-                for i in reversed(range(len(self.states)))
+                for i in reversed(range(len(log_probas)))
             ]
         )
 
-        action_probs = self.policy_net(states).squeeze()
-        log_probs = torch.log(
-            action_probs * actions + (1 - action_probs) * (1 - actions)
-        )
-
-        baseline = torch.mean(discounted_rewards)
-        advantage = (discounted_rewards - baseline) / torch.std(discounted_rewards)
-        policy_loss = -torch.sum(log_probs * advantage)
+        # TODO: use a baseline?
+        policy_loss = -torch.sum(log_probas * discounted_rewards)
 
         policy_loss.backward()
+        # TODO: torch.nn.utils.clip_grad_norm_?
         self.optimizer.step()
+        self.optimizer.zero_grad()
 
 
 class PolicyGradientTrainer:
@@ -276,7 +271,7 @@ def main():
     trainer.resume(save_dir=save_dir)
     trainer.train(save_dir=save_dir, save_frequency=save_frequency)
 
-    if (save_frequency % num_games) != 0:
+    if (num_games % save_frequency) != 0:
         trainer.save_players(save_dir=save_dir, overwrite=True)
 
     players = sorted(trainer.players, key=lambda p: p.elo_rating, reverse=True)

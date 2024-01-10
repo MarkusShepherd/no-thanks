@@ -50,16 +50,16 @@ class GameState:
     card_p2_in_front_of_other_players: bool
     card_p3_in_front_of_other_players: bool
 
-    def to_array(self) -> np.ndarray[Any, np.dtype[np.int8]]:
+    def to_array(self) -> np.ndarray[Any, np.dtype[np.float64]]:
         """Convert to a numpy array."""
 
         return np.array(
             [
-                self.number_of_opponents,
-                self.cards_in_draw_pile,
-                self.current_card,
-                self.tokens_on_card,
-                self.tokens_in_hand_of_this_player,
+                self.number_of_opponents / Game.NUM_PLAYERS_MAX,
+                self.cards_in_draw_pile / (Game.CARD_MAX - Game.NUM_CARDS_DISCARD),
+                self.current_card / Game.CARD_MAX,
+                self.tokens_on_card / Game.CARD_MAX,
+                self.tokens_in_hand_of_this_player / 55,
                 self.card_m3_in_front_of_this_player,
                 self.card_m2_in_front_of_this_player,
                 self.card_m1_in_front_of_this_player,
@@ -73,7 +73,7 @@ class GameState:
                 self.card_p2_in_front_of_other_players,
                 self.card_p3_in_front_of_other_players,
             ],
-            dtype=np.int8,
+            dtype=np.float64,
         )
 
     @classmethod

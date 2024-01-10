@@ -15,7 +15,7 @@ from no_thanks.algorithms.genetic import (
     GeneticStrategyWeights,
 )
 from no_thanks.algorithms.policy_gradient import PolicyGradientPlayer, PolicyNetwork
-from no_thanks.core import Game
+from no_thanks.core import Game, Player
 from no_thanks.players import HeuristicPlayer, HumanPlayer
 
 LOGGER = logging.getLogger(__name__)
@@ -101,7 +101,7 @@ def load_policy_gradient_players(
     save_dir: Union[str, Path],
     num_strategies: int,
     top_strategies: Optional[int] = None,
-) -> List[HeuristicPlayer]:
+) -> List[Player]:
     """Load strategies from disk."""
 
     if num_strategies <= 0:
@@ -160,8 +160,8 @@ def main() -> None:
     assert Game.NUM_PLAYERS_MIN <= num_players <= Game.NUM_PLAYERS_MAX
 
     num_humans = len(names)
-    num_heuristics = 1 if num_humans < num_players else 0
-    num_genetics = 1  # max(num_players - num_humans - num_heuristics, 0)
+    num_heuristics = 0  # 1 if num_humans < num_players else 0
+    num_genetics = 0  # 1  # max(num_players - num_humans - num_heuristics, 0)
     num_pgs = max(num_players - num_humans - num_heuristics - num_genetics, 0)
 
     players = (
