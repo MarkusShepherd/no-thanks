@@ -21,6 +21,7 @@ from no_thanks.utils import pairwise
 
 LOGGER = logging.getLogger(__name__)
 UNSAFE_CHARACTERS = re.compile(r"\W+")
+EPOSILON = 1e-10
 
 
 class PolicyNetwork(nn.Module):
@@ -47,7 +48,7 @@ class PolicyGradientPlayer(Player):
 
     HIDDEN_LAYERS = (32, 16, 8)
 
-    log_probas: List[torch.Tensor]
+    probs: List[torch.Tensor]
 
     def __init__(
         self,
@@ -55,13 +56,15 @@ class PolicyGradientPlayer(Player):
         policy_net: PolicyNetwork,
         *,
         discount_factor: float = 0.9,
-        learning_rate: float = 0.00001,
+        learning_rate: float = 0.0000001,
+        entropy_weight: float = 0.001,
         elo_rating: Optional[float] = None,
     ):
         super().__init__(name, elo_rating=elo_rating)
         self.policy_net = policy_net
         self.discount_factor = discount_factor
         self.optimizer = optim.Adam(policy_net.parameters(), lr=learning_rate)
+        self.entropy_weight = entropy_weight
 
     def save(self, path: Union[str, Path]) -> None:
         """Save the player."""
@@ -81,7 +84,8 @@ class PolicyGradientPlayer(Player):
     def reset(self, game: Game, tokens: int) -> None:
         """Reset the player."""
         super().reset(game, tokens)
-        self.log_probas = []
+        self.optimizer.zero_grad()
+        self.probs = []
 
     def action(self) -> Action:
         """Choose an action based on policy gradient."""
@@ -92,15 +96,15 @@ class PolicyGradientPlayer(Player):
             return Action.TAKE
         state = self.game.state(self).to_array()
         state_tensor = torch.FloatTensor(state)
-        proba = self.policy_net(state_tensor)
+        prob = self.policy_net(state_tensor)
 
-        distro = Categorical(proba)
+        distro = Categorical(prob)
         action = distro.sample()
-        self.log_probas.append(torch.log(proba[action]))
+        self.probs.append(prob[action])
         LOGGER.debug(
             "Probability of %s: %.1f%%; actual action: %s",
             Action.TAKE,
-            100 * proba[1],
+            100 * prob[1],
             Action(action.item()),
         )
 
@@ -109,25 +113,30 @@ class PolicyGradientPlayer(Player):
     def update_weights(self, reward: float) -> None:
         """Update the weights of the policy network."""
 
-        if not self.log_probas:
+        if not self.probs:
             LOGGER.info(
                 "No states or actions recorded, unable to update weights of <%s>",
                 self.name,
             )
             return
 
-        assert self.log_probas, "No log probabilities recorded"
+        assert self.probs, "No probabilities recorded"
 
-        log_probas = torch.stack(self.log_probas)
+        probs = torch.stack(self.probs)
+        log_probs = torch.log(probs + EPOSILON)
         discounted_rewards = torch.FloatTensor(
             [
                 self.discount_factor**i * reward
-                for i in reversed(range(len(log_probas)))
+                for i in reversed(range(len(log_probs)))
             ]
         )
 
+        entropy_term = -torch.sum(probs * log_probs, dim=-1)
+
         # TODO: use a baseline?
-        policy_loss = -torch.sum(log_probas * discounted_rewards)
+        policy_loss = -torch.sum(
+            log_probs * discounted_rewards
+        ) - self.entropy_weight * torch.mean(entropy_term)
 
         policy_loss.backward()
         # TODO: torch.nn.utils.clip_grad_norm_?
