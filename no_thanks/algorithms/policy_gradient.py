@@ -93,6 +93,9 @@ class PolicyGradientPlayer(Player):
             # TODO: should we give a negative reward
             # to nudge the policy towards taking cards
             # when we have no tokens in hand?
+            # Likewise, should we give a positive reward
+            # to nudge the policy towards taking tokens
+            # when there's enough (c-1) tokens on the card?
             return Action.TAKE
         state = self.game.state(self).to_array()
         state_tensor = torch.FloatTensor(state)
