@@ -250,7 +250,9 @@ class GeneticTrainer:
         min_players = min_players or Game.NUM_PLAYERS_MIN
         max_players = max_players or Game.NUM_PLAYERS_MAX
 
-        assert min_players <= max_players
+        assert (
+            Game.NUM_PLAYERS_MIN <= min_players <= max_players <= Game.NUM_PLAYERS_MAX
+        )
 
         num_players = (
             min_players
